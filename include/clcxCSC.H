@@ -5,10 +5,12 @@
 
 // IMPACT
 #include "com.h"
-#include "com_devel.hpp"
+//#include "com_devel.hpp"
 
 // Calculix
 #include "CalculiX.h"
+
+class stepNonlinGeo;
 
 class clcx_module : public COM_Object {
 public:
@@ -19,17 +21,37 @@ public:
   static void Load(const std::string &name);
   static void Unload(const std::string &name);
 
-  // top level methods used for coupling
+  // top level methods used to control the simulation
+  // workflow
 public:
   // initializes the calculix from scratch
+  // reads input file and loads data structure
+  // accordingly
   void initialize(int vrb);
+
+  // runs the simulation end-to-end without applying 
+  // any control. This method has full access to all
+  // possible combination of simulation steps.
   void run();
+
+  // finalize simulation
   void finalize();
+
+  // sets simulation final time. Simulation time can not exceed
+  // this value. This method will overide the final time prescribed
+  // by the input file.
+  // NOTE: currently this method should be called only after initialize
+  //   , otherwise the default value (controlled from input file)
+  //   will be used
+  void set_final_time(const double &t_f);
+
+  // steps the simulation for the given amount of real time
+  void step(const double &t_step);
 
   // helper methods
 public:
   // writes out message on processs rank 0
-  void message(std::string msg, bool enforce_vrb = false);
+  int message(std::string msg, bool enforce_vrb = false);
   // set the name of the job
   void set_jobName(std::string);
   // set output type
@@ -38,20 +60,37 @@ public:
   void splash();
   // TODO: add logics to inform user about number of steps
   //       for now assume only one step
-  void get_nStep() {};
-  // perform post-initialization steps (if multiple steps needed should be called)
+  void get_nStep(){};
+  // perform post-initialization steps (if multiple steps needed should be
+  // called)
   void postInit();
+  // check if step is completed
+  bool step_completed(); 
 
+
+  // internal management
+private:
+  void step_initialize();
+  void step_check();
+  void step_run(const double step_tt);
+  bool step_ready_to_finalize();
+  void step_finalize();
 
   // management level variables
 private:
-  int _vrb = 0;
-  int _rank = 0;
-  int _nproc = 1;
+  int _vrb;
+  int _rank;
+  int _nproc;
   std::string _wname;
   MPI_Comm _comm;
+  bool _step_initialized;
+  bool _step_finalized;
+  bool _is_dynamic;
+  bool _is_static;
+  bool _is_thermal;
+  stepNonlinGeo *nlgeo;
 
-  // raw data used by calculix
+  // sharable data used by calculix
 public:
   ITG myid = 0;
   ITG nproc = 0;
@@ -340,13 +379,13 @@ public:
 
   // raw data used by calculix
 public:
-  double ctrl[56] = {
-      4.5,   8.5,   9.5,   16.5,  10.5,  4.5,   0.,    5.5,   0.,    0.,
-      0.25,  0.5,   0.75,  0.85,  0.,    0.,    1.5,   0.,    0.005, 0.01,
-      0.,    0.,    0.02,  1.e-5, 1.e-3, 1.e-8, 1.e30, 1.5,   0.25,  1.01,
-      1.,    1.,    5.e-7, 5.e-7, 5.e-7, 5.e-7, 5.e-7, 5.e-7, 5.e-7, -1.,
-      1.e20, 1.e20, 1.e20, 1.e20, 1.e20, 1.e20, 1.e20, 1.5,   0.5,   20.5,
-      1.5,   1.5,   0.001, 0.1,   100.5, 60.5};
+  double ctrl[56] = {4.5,   8.5,   9.5,   16.5,  10.5,  4.5,   0.,    5.5,
+                     0.,    0.,    0.25,  0.5,   0.75,  0.85,  0.,    0.,
+                     1.5,   0.,    0.005, 0.01,  0.,    0.,    0.02,  1.e-5,
+                     1.e-3, 1.e-8, 1.e30, 1.5,   0.25,  1.01,  1.,    1.,
+                     5.e-7, 5.e-7, 5.e-7, 5.e-7, 5.e-7, 5.e-7, 5.e-7, -1.,
+                     1.e20, 1.e20, 1.e20, 1.e20, 1.e20, 1.e20, 1.e20, 1.5,
+                     0.5,   20.5,  1.5,   1.5,   0.001, 0.1,   100.5, 60.5};
 
   // raw data used by calculix
 public:

@@ -1038,7 +1038,10 @@ set(SCCXCU
   ${CMAKE_SOURCE_DIR}/src/cudacusp.cu
   ${CMAKE_SOURCE_DIR}/src/cudacusp.thrustassembly.cu )
 
-set(CLCXLIB ${SCCXF} ${SCCXC} ${SCCXCU})
+set(CSCCXX
+  ${CMAKE_SOURCE_DIR}/src/stepNonlinGeo.C )
+
+set(CLCXLIB ${SCCXF} ${SCCXC} ${SCCXCU} ${CSCCXX})
 
 set(CLCXMAIN ${CMAKE_SOURCE_DIR}/src/ccx_2.15.c)
 

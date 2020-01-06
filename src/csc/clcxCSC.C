@@ -1,14 +1,14 @@
 #include "clcxCSC.H"
-//#include "CalculiX++.H"
+#include "stepNonlinGeo.H"
 #include <algorithm>
 #include <iostream>
 #include <string.h>
 
 // defaults constructor
 clcx_module::clcx_module()
-    : _vrb(0)
-
-{}
+    : _vrb(0), _rank(0), _nproc(1), _step_initialized(false),
+      _step_finalized(false), _is_dynamic(false), _is_static(false),
+      _is_thermal(false) {}
 
 // COM module loader
 void clcx_module::Load(const std::string &name) {
@@ -40,26 +40,36 @@ void clcx_module::Load(const std::string &name) {
   module_pointer->message("Loading Calculix on the window " + name);
 
   // registering functions
-  std::vector<COM_Type> types(13, COM_INT);
+  COM_Type types[5];
 
   types[0] = COM_RAWDATA;
   types[1] = COM_INT;
   COM_set_member_function((name + ".initialize").c_str(),
                           (Member_func_ptr)(&clcx_module::initialize),
-                          global_name.c_str(), "bi", &types[0]);
+                          global_name.c_str(), "bi", types);
 
   COM_set_member_function((name + ".run").c_str(),
                           (Member_func_ptr)(&clcx_module::run),
-                          global_name.c_str(), "b", &types[0]);
+                          global_name.c_str(), "b", types);
 
   COM_set_member_function((name + ".finalize").c_str(),
                           (Member_func_ptr)(&clcx_module::finalize),
-                          global_name.c_str(), "b", &types[0]);
+                          global_name.c_str(), "b", types);
 
   types[1] = COM_STRING;
   COM_set_member_function((name + ".set_jobName").c_str(),
                           (Member_func_ptr)(&clcx_module::set_jobName),
-                          global_name.c_str(), "bi", &types[0]);
+                          global_name.c_str(), "bi", types);
+
+  types[1] = COM_DOUBLE;
+  COM_set_member_function((name + ".set_final_time").c_str(),
+                          (Member_func_ptr)(&clcx_module::set_final_time),
+                          global_name.c_str(), "bi", types);
+
+  types[1] = COM_DOUBLE;
+  COM_set_member_function((name + ".step").c_str(),
+                          (Member_func_ptr)(&clcx_module::step),
+                          global_name.c_str(), "bi", types);
 
   COM_window_init_done(name);
 }
@@ -86,17 +96,19 @@ extern "C" void clcxcsc_unload_module(const char *name) {
   clcx_module::Unload(name);
 }
 
-void clcx_module::message(std::string msg, bool enfv) {
+int clcx_module::message(std::string msg, bool enfv) {
 
   if (_rank == 0 && (~enfv || (_vrb > 0 && enfv)))
     std::cout << "Calculix : " << msg << std::endl;
+
+  return (1);
 }
 
 void clcx_module::set_jobName(std::string jn) {
   message("Job name was set to " + jn);
   strcpy(jobnamec, jn.c_str());
+  jn = jn + " ";
   strcpy(jobnamef, jn.c_str());
-  strcpy(jobnamef, " ");
 }
 
 void clcx_module::set_outputType(std::string oti) {
@@ -121,7 +133,11 @@ void clcx_module::splash() {
   message("You are using a CSC module made on Wed Oct 23 13:41:18 CDT 2019");
 }
 
+void clcx_module::set_final_time(const double &t_f) { timepar[1] = t_f; }
+
 void clcx_module::initialize(int vrb) {
+  // TODO: There are several hard coded variables with funky values.
+  //       Some work needed to tidy up the implementation.
 
   _vrb = vrb;
   myid = _rank;
@@ -608,8 +624,8 @@ void clcx_module::postInit() {
   cyclicsymmetry = 0;
   if ((f1 = fopen(fneig, "rb")) != NULL) {
     if (fread(&cyclicsymmetry, sizeof(ITG), 1, f1) != 1) {
-      printf("*ERROR reading the information whether cyclic symmetry is "
-             "involved in the eigenvalue file");
+      message("*ERROR reading the information whether cyclic symmetry is "
+              "involved in the eigenvalue file");
       exit(0);
     }
     fclose(f1);
@@ -1002,8 +1018,8 @@ void clcx_module::postInit() {
   if ((nener == 1) && (nenerold == 0)) {
     NNEW(ener, double, mi[0] * ne * 2);
     if ((istep > 1) && (iperturb[0] > 1)) {
-      printf(" *ERROR in CalculiX: in nonlinear calculations\n");
-      printf("        energy output must be selected in the first step\n\n");
+      message(" *ERROR in CalculiX: in nonlinear calculations\n");
+      message("        energy output must be selected in the first step\n\n");
       FORTRAN(stop, ());
     }
   }
@@ -1115,7 +1131,7 @@ void clcx_module::postInit() {
 
     /* decascading the MPC's */
 
-    printf(" Decascading the MPC's\n\n");
+    message(" Decascading the MPC's\n\n");
 
     callfrommain = 1;
     cascade(ipompc, &coefmpc, &nodempc, &nmpc, &mpcfree, nodeboun, ndirboun,
@@ -1126,7 +1142,7 @@ void clcx_module::postInit() {
   /* determining the matrix structure: changes if SPC's have changed */
 
   if ((icascade == 0) && (nmethod < 8))
-    printf(" Determining the structure of the matrix:\n");
+    message(" Determining the structure of the matrix:\n");
 
   NNEW(nactdof, ITG, mt * nk);
   NNEW(mast1, ITG, nzs[1]);
@@ -1175,6 +1191,7 @@ void clcx_module::postInit() {
 void clcx_module::run() {
 
   message("Running ...");
+  message("Method = " + std::to_string(nmethod));
 
   // summary of analysis modes supported by Calculix
   /* nmethod=1: static analysis   */
@@ -1200,10 +1217,10 @@ void clcx_module::run() {
       mpcinfo[3] = maxlenmpc;
 
       if (icascade != 0) {
-        printf(" *ERROR in CalculiX: the matrix structure may");
-        printf("        change due to nonlinear equations;");
-        printf("        a purely linear calculation is not");
-        printf("        feasible; use NLGEOM on the *STEP card.");
+        message(" *ERROR in CalculiX: the matrix structure may");
+        message("        change due to nonlinear equations;");
+        message("        a purely linear calculation is not");
+        message("        feasible; use NLGEOM on the *STEP card.");
         FORTRAN(stop, ());
       }
 
@@ -1310,7 +1327,7 @@ void clcx_module::run() {
       }
 
 #else
-      printf("*ERROR in CalculiX: the ARPACK library is not linked\n\n");
+      message("*ERROR in CalculiX: the ARPACK library is not linked\n\n");
       FORTRAN(stop, ());
 #endif
 
@@ -1349,7 +1366,7 @@ void clcx_module::run() {
       }
 
 #else
-      printf("*ERROR in CalculiX: the ARPACK library is not linked\n\n");
+      message("*ERROR in CalculiX: the ARPACK library is not linked\n\n");
       FORTRAN(stop, ());
 #endif
     }
@@ -1369,24 +1386,24 @@ void clcx_module::run() {
              &ntrans, &ttime, fmpc, cbody, ibody, xbody, &nbody, thicke,
              jobnamec, &nmat, ielprop, prop, orname, typeboun);
 #else
-    printf("*ERROR in CalculiX: the ARPACK library is not linked\n\n");
+    message("*ERROR in CalculiX: the ARPACK library is not linked\n\n");
     FORTRAN(stop, ());
 #endif
   } else if (nmethod == 4) {
     if ((ne1d != 0) || (ne2d != 0)) {
-      printf(" *WARNING: 1-D or 2-D elements may cause problems in modal "
-             "dynamic calculations\n");
-      printf("           ensure that point loads defined in a *MODAL DYNAMIC "
-             "step\n");
-      printf("           and applied to nodes belonging to 1-D or 2-D "
-             "elements have been\n");
-      printf("           applied to the same nodes in the preceding "
-             "FREQUENCY step with\n");
-      printf("           magnitude zero; look at example shellf.inp for a "
-             "guideline.\n\n");
+      message(" *WARNING: 1-D or 2-D elements may cause problems in modal "
+              "dynamic calculations\n");
+      message("           ensure that point loads defined in a *MODAL DYNAMIC "
+              "step\n");
+      message("           and applied to nodes belonging to 1-D or 2-D "
+              "elements have been\n");
+      message("           applied to the same nodes in the preceding "
+              "FREQUENCY step with\n");
+      message("           magnitude zero; look at example shellf.inp for a "
+              "guideline.\n\n");
     }
 
-    printf(" Composing the dynamic response from the eigenmodes\n\n");
+    message(" Composing the dynamic response from the eigenmodes\n\n");
 
     dyna(&co, &nk, &kon, &ipkon, &lakon, &ne, &nodeboun, &ndirboun, &xboun,
          &nboun, &ipompc, &nodempc, &coefmpc, &labmpc, &nmpc, nodeforc,
@@ -1406,19 +1423,19 @@ void clcx_module::run() {
          typeboun, ielprop, prop, orname);
   } else if (nmethod == 5) {
     if ((ne1d != 0) || (ne2d != 0)) {
-      printf(" *WARNING: 1-D or 2-D elements may cause problems in steady "
-             "state calculations\n");
-      printf("           ensure that point loads defined in a *STEADY STATE "
-             "DYNAMICS step\n");
-      printf("           and applied to nodes belonging to 1-D or 2-D "
-             "elements have been\n");
-      printf("           applied to the same nodes in the preceding "
-             "FREQUENCY step with\n");
-      printf("           magnitude zero; look at example shellf.inp for a "
-             "guideline.\n\n");
+      message(" *WARNING: 1-D or 2-D elements may cause problems in steady "
+              "state calculations\n");
+      message("           ensure that point loads defined in a *STEADY STATE "
+              "DYNAMICS step\n");
+      message("           and applied to nodes belonging to 1-D or 2-D "
+              "elements have been\n");
+      message("           applied to the same nodes in the preceding "
+              "FREQUENCY step with\n");
+      message("           magnitude zero; look at example shellf.inp for a "
+              "guideline.\n\n");
     }
 
-    printf(" Composing the steady state response from the eigenmodes\n\n");
+    message(" Composing the steady state response from the eigenmodes\n\n");
 
     steadystate(
         &co, &nk, &kon, &ipkon, &lakon, &ne, &nodeboun, &ndirboun, &xboun,
@@ -1438,7 +1455,7 @@ void clcx_module::run() {
         &ndamp, dacon);
   } else if ((nmethod == 6) || (nmethod == 7)) {
 
-    printf(" Composing the complex eigenmodes from the real eigenmodes\n\n");
+    message(" Composing the complex eigenmodes from the real eigenmodes\n\n");
 
     complexfreq(
         &co, &nk, &kon, &ipkon, &lakon, &ne, &nodeboun, &ndirboun, &xboun,
@@ -1659,7 +1676,7 @@ void clcx_module::finalize() {
   strcpy(fneig, jobnamec);
   strcat(fneig, ".frd");
   if ((f1 = fopen(fneig, "ab")) == NULL) {
-    printf("*ERROR in frd: cannot open frd file for writing...");
+    message("*ERROR in frd: cannot open frd file for writing...");
     exit(0);
   }
 #ifdef EXODUSII
@@ -1843,4 +1860,297 @@ void clcx_module::finalize() {
 #endif /* CALCULIX_EXTERNAL_BEHAVIOURS_SUPPORT */
 
   message("Done finalizing");
+}
+
+void clcx_module::step(const double &t_step) {
+  step_initialize();
+  double step_tt = t_step;
+  step_run(step_tt);
+  if (step_completed())
+    step_finalize();
+}
+
+void clcx_module::step_check() {
+
+  _is_static = (nmethod == 1);
+  _is_dynamic = (nmethod == 4);
+  _is_thermal = (ithermal[0] >= 2);
+
+  if (_vrb) {
+    message("Simulation class is ");
+    if (_is_static) {
+      message("STATIC");
+    }
+    if (_is_dynamic) {
+      message("DYNAMIC");
+    }
+    if (_is_thermal) {
+      message("THERMAL");
+    }
+    if (iperturb[0] < 2) {
+      message("PERTURBATION");
+    } else {
+      message("GENERAL");
+    };
+  }
+
+  if (~(_is_static || _is_dynamic) && iperturb[0] < 2) {
+    message("Only general static and dynamic analyses are supported.");
+    throw;
+  }
+}
+
+void clcx_module::step_initialize() {
+
+  // only one time operations here
+  if (_step_initialized)
+    return;
+
+  // check support
+  step_check();
+
+  // passed this check we can consider first step is safe
+  _step_initialized = true;
+
+  // running non-linear geometry initialization
+  mpcinfo[0] = memmpc_;
+  mpcinfo[1] = mpcfree;
+  mpcinfo[2] = icascade;
+  mpcinfo[3] = maxlenmpc;
+
+  // nonlingeo_initialize(
+  nlgeo = new stepNonlinGeo();
+  nlgeo->initialize(
+      &co, &nk, &kon, &ipkon, &lakon, &ne, nodeboun, ndirboun, xboun, &nboun,
+      &ipompc, &nodempc, &coefmpc, &labmpc, &nmpc, nodeforc, ndirforc, xforc,
+      &nforc, &nelemload, &sideload, xload, &nload, nactdof, &icol, jq, &irow,
+      neq, &nzl, &nmethod, &ikmpc, &ilmpc, ikboun, ilboun, elcon, nelcon, rhcon,
+      nrhcon, alcon, nalcon, alzero, &ielmat, &ielorien, &norien, orab, &ntmat_,
+      t0, t1, t1old, ithermal, prestr, &iprestr, &vold, iperturb, sti, nzs,
+      &kode, filab, &idrct, jmax, jout, timepar, eme, xbounold, xforcold,
+      xloadold, veold, accold, amname, amta, namta, &nam, iamforc, &iamload,
+      iamt1, &alpha, &iexpl, iamboun, plicon, nplicon, plkcon, nplkcon, &xstate,
+      &npmat_, &istep, &ttime, matname, qaold, mi, &isolver, &ncmat_, &nstate_,
+      &iumat, cs, &mcs, &nkon, &ener, mpcinfo, output, shcon, nshcon, cocon,
+      ncocon, physcon, &nflow, ctrl, set, &nset, istartset, iendset, ialset,
+      &nprint, prlab, prset, &nener, ikforc, ilforc, trab, inotr, &ntrans,
+      &fmpc, cbody, ibody, xbody, &nbody, xbodyold, ielprop, prop, &ntie,
+      tieset, &itpamp, &iviewfile, jobnamec, tietol, &nslavs, thicke, ics,
+      &nintpoint, &mortar, &ifacecount, typeboun, &islavsurf, &pslavsurf,
+      &clearini, &nmat, xmodal, &iaxial, &inext, &nprop, &network, orname, vel,
+      &nef, velo, veloo);
+  message("Done initializing non-linear geometry step.");
+}
+
+void clcx_module::step_run(const double step_tt) {
+  // check requested target time
+  if (nlgeo->set_step_target_time(step_tt)) {
+    message("Requested target time for the step is beyond what set in the "
+            "input file.");
+    message("Step will proceed upto the value prescribed in the input file.");
+  }
+  nlgeo->increment(
+      &co, &nk, &kon, &ipkon, &lakon, &ne, nodeboun, ndirboun, xboun, &nboun,
+      &ipompc, &nodempc, &coefmpc, &labmpc, &nmpc, nodeforc, ndirforc, xforc,
+      &nforc, &nelemload, &sideload, xload, &nload, nactdof, &icol, jq, &irow,
+      neq, &nzl, &nmethod, &ikmpc, &ilmpc, ikboun, ilboun, elcon, nelcon, rhcon,
+      nrhcon, alcon, nalcon, alzero, &ielmat, &ielorien, &norien, orab, &ntmat_,
+      t0, t1, t1old, ithermal, prestr, &iprestr, &vold, iperturb, sti, nzs,
+      &kode, filab, &idrct, jmax, jout, timepar, eme, xbounold, xforcold,
+      xloadold, veold, accold, amname, amta, namta, &nam, iamforc, &iamload,
+      iamt1, &alpha, &iexpl, iamboun, plicon, nplicon, plkcon, nplkcon, &xstate,
+      &npmat_, &istep, &ttime, matname, qaold, mi, &isolver, &ncmat_, &nstate_,
+      &iumat, cs, &mcs, &nkon, &ener, mpcinfo, output, shcon, nshcon, cocon,
+      ncocon, physcon, &nflow, ctrl, set, &nset, istartset, iendset, ialset,
+      &nprint, prlab, prset, &nener, ikforc, ilforc, trab, inotr, &ntrans,
+      &fmpc, cbody, ibody, xbody, &nbody, xbodyold, ielprop, prop, &ntie,
+      tieset, &itpamp, &iviewfile, jobnamec, tietol, &nslavs, thicke, ics,
+      &nintpoint, &mortar, &ifacecount, typeboun, &islavsurf, &pslavsurf,
+      &clearini, &nmat, xmodal, &iaxial, &inext, &nprop, &network, orname, vel,
+      &nef, velo, veloo);
+}
+
+bool clcx_module::step_completed() { return (nlgeo->is_completed()); }
+
+void clcx_module::step_finalize() {
+
+  // only one time operations here
+  if (_step_finalized)
+    return;
+  _step_finalized = true;
+
+  nlgeo->finalize(
+      &co, &nk, &kon, &ipkon, &lakon, &ne, nodeboun, ndirboun, xboun, &nboun,
+      &ipompc, &nodempc, &coefmpc, &labmpc, &nmpc, nodeforc, ndirforc, xforc,
+      &nforc, &nelemload, &sideload, xload, &nload, nactdof, &icol, jq, &irow,
+      neq, &nzl, &nmethod, &ikmpc, &ilmpc, ikboun, ilboun, elcon, nelcon, rhcon,
+      nrhcon, alcon, nalcon, alzero, &ielmat, &ielorien, &norien, orab, &ntmat_,
+      t0, t1, t1old, ithermal, prestr, &iprestr, &vold, iperturb, sti, nzs,
+      &kode, filab, &idrct, jmax, jout, timepar, eme, xbounold, xforcold,
+      xloadold, veold, accold, amname, amta, namta, &nam, iamforc, &iamload,
+      iamt1, &alpha, &iexpl, iamboun, plicon, nplicon, plkcon, nplkcon, &xstate,
+      &npmat_, &istep, &ttime, matname, qaold, mi, &isolver, &ncmat_, &nstate_,
+      &iumat, cs, &mcs, &nkon, &ener, mpcinfo, output, shcon, nshcon, cocon,
+      ncocon, physcon, &nflow, ctrl, set, &nset, istartset, iendset, ialset,
+      &nprint, prlab, prset, &nener, ikforc, ilforc, trab, inotr, &ntrans,
+      &fmpc, cbody, ibody, xbody, &nbody, xbodyold, ielprop, prop, &ntie,
+      tieset, &itpamp, &iviewfile, jobnamec, tietol, &nslavs, thicke, ics,
+      &nintpoint, &mortar, &ifacecount, typeboun, &islavsurf, &pslavsurf,
+      &clearini, &nmat, xmodal, &iaxial, &inext, &nprop, &network, orname, vel,
+      &nef, velo, veloo);
+
+  // destroying object
+  delete nlgeo;
+
+  // right after the nonlingeo
+  memmpc_ = mpcinfo[0];
+  mpcfree = mpcinfo[1];
+  icascade = mpcinfo[2];
+  maxlenmpc = mpcinfo[3];
+
+  for (i = 0; i < 3; i++) {
+    nzsprevstep[i] = nzs[i];
+  }
+
+  // rest of the finalization of the step
+  SFREE(nactdof);
+  SFREE(icol);
+  SFREE(jq);
+  SFREE(irow);
+
+  /* deleting the perturbation loads and temperatures */
+
+  if ((iperturb[0] == 1) && (nmethod == 3)) {
+    nforc = 0;
+    nload = 0;
+    nbody = 0;
+    if (ithermal[0] == 1) {
+      for (k = 0; k < nk; ++k) {
+        t1[k] = t0[k];
+      }
+    }
+  } else {
+    nbounold = nboun;
+    for (i = 0; i < nboun; i++) {
+      nodebounold[i] = nodeboun[i];
+      ndirbounold[i] = ndirboun[i];
+    }
+    nforcold = nforc;
+    nloadold = nload;
+    nbodyold = nbody;
+
+    /* resetting the amplitude to none except for time=total time amplitudes
+     */
+
+    if (nam > 0) {
+      for (i = 0; i < nboun; i++) {
+        if (iamboun[i] > 0) {
+          if (namta[3 * iamboun[i] - 1] > 0) {
+            iamboun[i] = 0;
+            xboun[i] = xbounold[i];
+          }
+        }
+      }
+      for (i = 0; i < nforc; i++) {
+        if (iamforc[i] > 0) {
+          if (namta[3 * iamforc[i] - 1] > 0) {
+            iamforc[i] = 0;
+            xforc[i] = xforcold[i];
+          }
+        }
+      }
+      for (i = 0; i < 2 * nload; i++) {
+        if (iamload[i] > 0) {
+          if (namta[3 * iamload[i] - 1] > 0) {
+            iamload[i] = 0;
+            xload[i] = xloadold[i];
+          }
+        }
+      }
+      for (i = 1; i < 3 * nbody; i = i + 3) {
+        if (ibody[i] > 0) {
+          if (namta[3 * ibody[i] - 1] > 0) {
+            ibody[i] = 0;
+            xbody[7 * (i - 1) / 3] = xbodyold[7 * (i - 1) / 3];
+          }
+        }
+      }
+      if (ithermal[0] == 1) {
+        if (iamt1[i] > 0) {
+          if (namta[3 * iamt1[i] - 1] > 0) {
+            iamt1[i] = 0;
+            t1[i] = t1old[i];
+          }
+        }
+      }
+    }
+  }
+
+  /* removing the advective elements, if any */
+
+  if (network > 0) {
+    ne = ne0;
+    nkon = nkon0;
+    RENEW(ipkon, ITG, ne);
+    RENEW(lakon, char, 8 * ne);
+    RENEW(kon, ITG, nkon);
+    RENEW(sti, double, 6 * mi[0] * ne);
+    RENEW(eme, double, 6 * mi[0] * ne);
+    if (iprestr > 0)
+      RENEW(prestr, double, 6 * mi[0] * ne);
+    if (nprop > 0)
+      RENEW(ielprop, ITG, ne);
+    if ((ne1d != 0) || (ne2d != 0))
+      RENEW(offset, double, 2 * ne);
+    if (nener == 1)
+      RENEW(ener, double, mi[0] * ne * 2);
+    if (norien > 0)
+      RENEW(ielorien, ITG, mi[2] * ne);
+    RENEW(ielmat, ITG, mi[2] * ne);
+
+    /* reactivating the original load labels */
+
+    for (i = nload - 1; i >= nload0; i--) {
+      if (strcmp2(&sideload[20 * i], "                    ", 20) == 0) {
+        iload = nelemload[2 * i + 1];
+        strcpy1(&sideload[20 * (iload - 1)], "F", 1);
+      }
+    }
+  }
+
+  nload = nload0;
+
+  if ((nmethod == 4) && (iperturb[0] > 1))
+    SFREE(accold);
+
+  if (irstrt[0] > 0) {
+    jrstrt++;
+    if (jrstrt >= irstrt[0]) {
+      jrstrt = 0;
+      FORTRAN(restartwrite,
+              (&istep, &nset, &nload, &nforc, &nboun, &nk, &ne, &nmpc, &nalset,
+               &nmat, &ntmat_, &npmat_, &norien, &nam, &nprint, mi, &ntrans,
+               &ncs_, &namtot, &ncmat_, &mpcend, &maxlenmpc, &ne1d, &ne2d,
+               &nflow, &nlabel, &iplas, &nkon, ithermal, &nmethod, iperturb,
+               &nstate_, &nener, set, istartset, iendset, ialset, co, kon,
+               ipkon, lakon, nodeboun, ndirboun, iamboun, xboun, ikboun, ilboun,
+               ipompc, nodempc, coefmpc, labmpc, ikmpc, ilmpc, nodeforc,
+               ndirforc, iamforc, xforc, ikforc, ilforc, nelemload, iamload,
+               sideload, xload, elcon, nelcon, rhcon, nrhcon, alcon, nalcon,
+               alzero, plicon, nplicon, plkcon, nplkcon, orname, orab, ielorien,
+               trab, inotr, amname, amta, namta, t0, t1, iamt1, veold, ielmat,
+               matname, prlab, prset, filab, vold, nodebounold, ndirbounold,
+               xbounold, xforcold, xloadold, t1old, eme, iponor, xnor, knor,
+               thicke, offset, iponoel, inoel, rig, shcon, nshcon, cocon,
+               ncocon, ics, sti, ener, xstate, jobnamec, infree, prestr,
+               &iprestr, cbody, ibody, xbody, &nbody, xbodyold, &ttime, qaold,
+               cs, &mcs, output, physcon, ctrl, typeboun, fmpc, tieset, &ntie,
+               tietol, &nslavs, t0g, t1g, &nprop, ielprop, prop, &mortar,
+               &nintpoint, &ifacecount, islavsurf, pslavsurf, clearini, irstrt,
+               vel, &nef, velo, veloo));
+    }
+  }
+
+  // master loop was finishing here
+  message("Done stepping");
 }

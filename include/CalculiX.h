@@ -16,6 +16,13 @@
 /*     along with this program; if not, write to the Free Software       */
 /*     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.         */
 
+#ifndef CALCULIX_H
+#define CALCULIX_H
+
+#include <stdlib.h>
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
 #include <pthread.h>
 
 #define Linux 1
@@ -4786,3 +4793,5 @@ void calculix_registerExternalBehaviour(const char *);
 void calculix_freeExternalBehaviours();
 
 #endif /* CALCULIX_EXTERNAL_BEHAVIOURS_SUPPORT */
+
+#endif

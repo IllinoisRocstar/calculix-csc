@@ -1,6 +1,6 @@
 CalculiX -- IR Extras
 ---------------------
-This is plain, vanila CalculiX project (v2.15) with a few additions as follows:
+This is the vanila CalculiX project (v2.15) with a few additions as follows:
 * IMPACT coupling module (CSC)
 * Totally revamped build system (based on CMake)
 * CUDA based solvers (currently in-active) 

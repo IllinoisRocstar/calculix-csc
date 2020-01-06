@@ -8,9 +8,11 @@ COM_EXTERN_MODULE(clcxcsc);
 // static vars
 int _wrank = 0;
 int _wsize = 0;
-int _vrb = 0;
+int _vrb = 1;
 int _hndl;
 std::string _jn = "case_name";
+bool _step = false;
+double _step_time = 0.;
 
 // aux declarations
 void usage(char **);
@@ -41,19 +43,29 @@ main(int argc, char *argv[]) {
   _hndl = COM_get_function_handle("clcx.set_jobName");
   if (_hndl < 0)
     exitme("Error obtaining set_jobName handle");
-  COM_call_function(_hndl, 1, _jn);
+  COM_call_function(_hndl, &_jn);
 
   // initialize
   _hndl = COM_get_function_handle("clcx.initialize");
   if (_hndl < 0)
     exitme("Error obtaining initialize handle.\n");
-  COM_call_function(_hndl, 1, _vrb);
+  COM_call_function(_hndl, _vrb);
 
-  // run
-  _hndl = COM_get_function_handle("clcx.run");
-  if (_hndl < 0)
-    exitme("Error obtaining run handle.\n");
-  COM_call_function(_hndl);
+  if (!_step)
+  {
+      // run
+      _hndl = COM_get_function_handle("clcx.run");
+      if (_hndl < 0)
+          exitme("Error obtaining run handle.\n");
+      COM_call_function(_hndl);
+  } else {
+      // run
+      _hndl = COM_get_function_handle("clcx.step");
+      if (_hndl < 0)
+          exitme("Error obtaining step handle.\n");
+      std::cout << "Stepping in time : " << _step_time << std::endl;
+      COM_call_function(_hndl, &_step_time);
+  }
 
   // finalize
   _hndl = COM_get_function_handle("clcx.finalize");
@@ -82,7 +94,7 @@ void usage(char *argv[]) {
     if (_wsize > 1)
       std::cout << "Parallel run with " << _wsize << " processes.\n";
     std::cout << std::endl << "Usage: " << std::endl;
-    std::cout << "\t" << argv[0] << " [[-flags] [case_name]]"
+    std::cout << "\t" << argv[0] << " [[-flags] [case_name] [target_time]]"
               << "\n\nwhere flags are " << std::endl
               << "\t-v : "
               << "verbose output" << std::endl
@@ -90,6 +102,8 @@ void usage(char *argv[]) {
               << "exodus output" << std::endl
               << "\t-c : "
               << "case file name [case_name]" << std::endl
+              << "\t-s : "
+              << "starts and steps for a given amount of time passed [target_time]" << std::endl
               << std::endl
               << std::endl;
   }
@@ -112,6 +126,10 @@ void procArgs(int argc, char *argv[]) {
         _jn = std::string(argv[iArg + 1]);
       if (args.compare("-v") == 0)
         _vrb = 1;
+      if (args.compare("-s") == 0) {
+        _step = true; 
+        _step_time = std::stod(std::string(argv[iArg + 1]));
+      }
     }
   }
 }

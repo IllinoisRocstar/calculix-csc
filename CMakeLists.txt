@@ -39,7 +39,7 @@ opt(CSC "Builds solver driver and csc modules" ON)
 # default definitions
 add_definitions("-DUSE_MT")
 add_definitions("-DARCH=Linux")
-add_definitions("-DMATRIXSTORAGE")
+#add_definitions("-DMATRIXSTORAGE")
 add_definitions("-DSPOOLES")
 add_definitions("-DARPACK")
 add_definitions("-DEXODUSII")
