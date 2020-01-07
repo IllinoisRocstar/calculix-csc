@@ -1862,9 +1862,9 @@ void clcx_module::finalize() {
   message("Done finalizing");
 }
 
-void clcx_module::step(const double &t_step) {
+void clcx_module::step(const double &stp_tt) {
   step_initialize();
-  double step_tt = t_step;
+  double step_tt = stp_tt;
   step_run(step_tt);
   if (step_completed())
     step_finalize();

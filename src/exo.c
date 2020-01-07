@@ -30,6 +30,12 @@
 #define min(a,b) ((a) <= (b) ? (a) : (b))
 #define max(a,b) ((a) >= (b) ? (a) : (b))
 
+#ifdef LONGLONG
+  typedef double FTYPE;
+#else
+  typedef float FTYPE;
+#endif
+
 void exo(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
 	 double *v,double *stn,ITG *inum,ITG *nmethod,ITG *kode,
 	 char *filab,double *een,double *t1,double *fn,double *time,
@@ -254,6 +260,9 @@ void exo(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
     ITG *blkassign;
     blkassign = (ITG *) calloc(num_elem, sizeof(ITG));
 
+    ITG *matassign;
+    matassign = (ITG *) calloc(num_elem, sizeof(ITG));
+
     l=0;
     for(i=0;i<*ne0;i++){ // For each element.  Composite elements are
 			 // one increment in this loop and all layers
@@ -279,6 +288,7 @@ void exo(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
       // printf ("%s\n", curblk);
       strcpy1(material,&matname[80*(ielmat[i*mi[2]]-1)],5);
       // printf ("TODO store material identifier and name.\n");
+      matassign[l] = ielmat[i*mi[2]];
 
       // Identify element type
       if(strcmp1(&lakon[8*i+3],"2")==0){
@@ -298,6 +308,7 @@ void exo(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
 	  for(k=0;k<nlayer;k++){
 	    nemax++;
 	    elem_map[l] = i+1;
+        matassign[l] = ielmat[i*mi[2]];
 	    blkassign[l++]=2;
 	  }
 	}else if(strcmp1(&lakon[8*i+6],"B")==0){
@@ -410,11 +421,21 @@ void exo(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
     errr = ex_put_names (exoid, EX_ELEM_BLOCK, blknames);
     if(errr){printf("*ERROR in exo: cannot write block names");}
 
+    // for element material ids
+    int countvars_elm = 1;
+    errr = ex_put_variable_param (exoid, EX_ELEM_BLOCK, countvars_elm);
+    if(errr){printf("*ERROR in exo: cannot write number of element vars");}
+    char* var_names_elm[1];
+	var_names_elm[0] = (char *) calloc ((MAX_STR_LENGTH+1), sizeof(char));
+    var_names_elm[0] = "Mat ID";
+    errr = ex_put_variable_names (exoid, EX_ELEM_BLOCK, countvars_elm, var_names_elm);
+    if (errr) {printf ("Unable to update element variable names. \n\n");}
 
     /* write element connectivity */
     ITG *connect;
     ITG num_elem_in_blk;
     ITG blksize[num_elem_blk];
+    FTYPE *matid;
 
     for(l=0;l<num_elem_blk;l++){
       // First determine the size of the block
@@ -440,7 +461,9 @@ void exo(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
 
       connect = (ITG *) calloc (num_elem_in_blk*num_nodes_per_elem[l], sizeof(ITG));
       // printf ("Size of connect %" ITGFORMAT "\n", num_elem_in_blk*num_nodes_per_elem[l]*sizeof(ITG));
+      matid = (FTYPE *) calloc (num_elem_in_blk, sizeof(FTYPE));
       k=0; o=0;
+      int ie = 0;
 
       // Now connectivity
       for(i=0;i<*ne0;i++){
@@ -448,6 +471,7 @@ void exo(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
 	indexe=ipkon[i];
 	if (blkassign[o]==l){
 	  // printf ("block assignment %" ITGFORMAT "\n", blkassign[o]);
+      matid[ie++] = matassign[o];
 	  if(blkassign[o]==1){ // C3D20
 	    for(m=0;m<12;m++){connect[k++] = node_map_inv[kon[indexe+m]-1];}
 	    for(m=16;m<20;m++){connect[k++] = node_map_inv[kon[indexe+m]-1];}
@@ -561,7 +585,16 @@ void exo(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
 	  printf ("ERROR in ex_put_conn %i\n", errr);
       }
       free (connect);
+
+      // write element material id data
+      if (num_elem_in_blk>0){
+          errr = ex_put_elem_var(exoid, 1, 1, l, num_elem_in_blk, matid);
+	      if (errr)
+            printf ("ERROR in ex_put_elm_var %i\n", errr);
+      }
+      free (matid);
     }
+
 
     // Write the element map into the file
     errr = ex_put_id_map (exoid, EX_ELEM_MAP, elem_map);
@@ -617,12 +650,36 @@ void exo(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
   errr = ex_put_time (exoid, num_time_steps, &timet);
   if (errr) printf ("Error storing time into exo file.\n");
 
+  // copy over element material ids for next time steps assuming the 
+  // topology remains untouched for now
+  for (int iblk=0; iblk<17; iblk++)
+  {
+      // get block information
+      char desc[MAX_STR_LENGTH];
+      int nele, nnpe, nepe, nfpe, nape;
+      errr = ex_get_block(exoid, EX_ELEM_BLOCK, iblk, desc, &nele, &nnpe, &nepe, &nfpe, &nape);
+      if (errr) printf ("Error geting element block information.\n");
+      if (nele == 0)
+          continue;
+      //printf ("time %d, iblk %d, nele %d\n",num_time_steps,iblk,nele);
+      // get old material ids
+      FTYPE* matid;
+      matid = (FTYPE *) calloc (nele, sizeof(FTYPE));
+      errr = ex_get_elem_var(exoid, 1, 1, iblk, nele, matid);
+      if (errr) printf ("Error getting element block material ids.\n");
+      // put old material ids for new time
+      errr = ex_put_elem_var(exoid, num_time_steps, 1, iblk, nele, matid);
+      if (errr) printf ("Error writing element block material ids.\n");
+      free(matid);
+  }
+
   // Statically allocate an array of pointers.  Can't figure out how to do this dynamically.
   // 100 should be enough to store the variable names.
   char *var_names[100];
 
   int countvars=0;
   int countbool=3;
+
 
   while(countbool>0){
     // First time count
@@ -1709,6 +1766,7 @@ void exo(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
       }
     }
 
+
     /*  the remaining lines only apply to frequency calculations
 	with cyclic symmetry, complex frequency and steady state calculations */
 
@@ -1994,6 +2052,8 @@ void exo(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
       }
     }
 
+
+
   WRITENAMES:
     if (countbool==3){
       errr = ex_put_variable_param (exoid, EX_NODAL, countvars);
@@ -2023,6 +2083,7 @@ void exo(double *co,ITG *nk,ITG *kon,ITG *ipkon,char *lakon,ITG *ne0,
       // 	  free(var_names[i]);
       // 	}
       ex_update (exoid);
+
     }
 
     countvars=0;

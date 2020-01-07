@@ -22,22 +22,23 @@ public:
   static void Unload(const std::string &name);
 
   // top level methods used to control the simulation
-  // workflow
+  // workflow. These methods are registered on the COM
+  // window object
 public:
   // initializes the calculix from scratch
   // reads input file and loads data structure
   // accordingly
   void initialize(int vrb);
 
-  // runs the simulation end-to-end without applying 
+  // runs the simulation end-to-end without applying
   // any control. This method has full access to all
-  // possible combination of simulation steps.
+  // possible combination of simulation configurations.
   void run();
 
-  // finalize simulation
+  // finalizes the simulation
   void finalize();
 
-  // sets simulation final time. Simulation time can not exceed
+  // sets the simulation final time. Simulation time can not exceed
   // this value. This method will overide the final time prescribed
   // by the input file.
   // NOTE: currently this method should be called only after initialize
@@ -45,28 +46,42 @@ public:
   //   will be used
   void set_final_time(const double &t_f);
 
-  // steps the simulation for the given amount of real time
-  void step(const double &t_step);
+  // NOTE: this method is only tested with certain simulation configurations
+  // steps the simulation for the requested amount of time (\delta time).
+  // If user has set the input file properly (with direct integration)
+  // the simulation steps in the time accurately for the given amount of time,
+  // otherwise the value is used as target and simulation proceed to its
+  // neighborhood. If target time goes beyond what prescribed at input file
+  // user will be informed. Input file will take the precedence. In order to
+  // go beyond the input file value use set_final_time command.
+  // in case of perturbation simulations, only one step is taken and value
+  // passed is not used
+  void step(const double &step_tt);
+
+  // sets the name of the job
+  void set_jobName(std::string);
 
   // helper methods
 public:
   // writes out message on processs rank 0
   int message(std::string msg, bool enforce_vrb = false);
-  // set the name of the job
-  void set_jobName(std::string);
+
   // set output type
   void set_outputType(std::string = "exo");
+
   // write splash to stdout
   void splash();
+
   // TODO: add logics to inform user about number of steps
   //       for now assume only one step
   void get_nStep(){};
+
   // perform post-initialization steps (if multiple steps needed should be
   // called)
   void postInit();
-  // check if step is completed
-  bool step_completed(); 
 
+  // check if step is completed
+  bool step_completed();
 
   // internal management
 private:

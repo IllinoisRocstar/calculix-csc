@@ -12,6 +12,7 @@ int _vrb = 1;
 int _hndl;
 std::string _jn = "case_name";
 bool _step = false;
+double _final_time = 0.;
 double _step_time = 0.;
 
 // aux declarations
@@ -51,20 +52,27 @@ main(int argc, char *argv[]) {
     exitme("Error obtaining initialize handle.\n");
   COM_call_function(_hndl, _vrb);
 
-  if (!_step)
-  {
-      // run
-      _hndl = COM_get_function_handle("clcx.run");
-      if (_hndl < 0)
-          exitme("Error obtaining run handle.\n");
-      COM_call_function(_hndl);
+  if (!_step) {
+    // run
+    _hndl = COM_get_function_handle("clcx.run");
+    if (_hndl < 0)
+      exitme("Error obtaining run handle.\n");
+    COM_call_function(_hndl);
   } else {
-      // run
-      _hndl = COM_get_function_handle("clcx.step");
+
+    // change final simulation time if needed
+    if (_final_time > 0) {
+      _hndl = COM_get_function_handle("clcx.set_final_time");
       if (_hndl < 0)
-          exitme("Error obtaining step handle.\n");
-      std::cout << "Stepping in time : " << _step_time << std::endl;
-      COM_call_function(_hndl, &_step_time);
+        exitme("Error obtaining step handle.\n");
+      COM_call_function(_hndl, &_final_time);
+    }
+
+    // step in time
+    _hndl = COM_get_function_handle("clcx.step");
+    if (_hndl < 0)
+      exitme("Error obtaining step handle.\n");
+    COM_call_function(_hndl, &_step_time);
   }
 
   // finalize
@@ -94,16 +102,21 @@ void usage(char *argv[]) {
     if (_wsize > 1)
       std::cout << "Parallel run with " << _wsize << " processes.\n";
     std::cout << std::endl << "Usage: " << std::endl;
-    std::cout << "\t" << argv[0] << " [[-flags] [case_name] [target_time]]"
-              << "\n\nwhere flags are " << std::endl
-              << "\t-v : "
-              << "verbose output" << std::endl
-              << "\t-e : "
-              << "exodus output" << std::endl
-              << "\t-c : "
-              << "case file name [case_name]" << std::endl
-              << "\t-s : "
-              << "starts and steps for a given amount of time passed [target_time]" << std::endl
+    std::cout << "\t" << argv[0] << " [[-flags] [flag_dependent_value]]"
+              << "\n\nwhere flags are \n"
+              << "\t-v\n"
+              << "\tverbose output\n"
+              << "\t-e\n"
+              << "\texodus output\n"
+              << "\t-c\n"
+              << "\tcase file name [case_name]\n"
+              << "\t-s\n"
+              << "\tstarts and steps for a given amount of time passed "
+                 "[target_time]\n"
+              << "\t-f\n"
+              << "\tproceed to the final simulation time passed [final_time]\n"
+              << "\tthis switch only works when -s is used\n"
+              << std::endl
               << std::endl
               << std::endl;
   }
@@ -127,9 +140,11 @@ void procArgs(int argc, char *argv[]) {
       if (args.compare("-v") == 0)
         _vrb = 1;
       if (args.compare("-s") == 0) {
-        _step = true; 
+        _step = true;
         _step_time = std::stod(std::string(argv[iArg + 1]));
       }
+      if (args.compare("-f") == 0)
+        _final_time = std::stod(std::string(argv[iArg + 1]));
     }
   }
 }
