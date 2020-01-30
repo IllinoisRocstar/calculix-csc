@@ -2068,7 +2068,7 @@ void steadystate(double **cop, ITG *nk, ITG **konp, ITG **ipkonp, char **lakonp,
 	  for(k=0;k<*nk;++k){t1[k]=t1act[k];}
       }
       
-      SFREE(br);SFREE(bi);SFREE(bjr);SFREE(bji),SFREE(freq);
+      SFREE(br);SFREE(bi);SFREE(bjr);SFREE(bji);SFREE(freq);
       SFREE(xforcact);SFREE(xloadact);SFREE(xbounact);SFREE(aa);SFREE(bb);
       SFREE(ampli);SFREE(xbodyact);SFREE(vr);SFREE(vi);if(*nbody>0) SFREE(ipobody);
       

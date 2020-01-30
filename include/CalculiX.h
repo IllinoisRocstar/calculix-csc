@@ -46,9 +46,23 @@
 #define CEE(A,B) A##B
 #endif
 
-#define NNEW(a,b,c) a=(b *)u_calloc((c),sizeof(b),__FILE__,__LINE__,#a)
+#ifdef __cplusplus
+#define NNEW(a,b,c) {a=(b *)u_calloc((c),sizeof(b),__FILE__,__LINE__,#a); register_dvar(#a,c);}
+#else
+#define NNEW(a,b,c) a=(b *)u_calloc((c),sizeof(b),__FILE__,__LINE__,#a);
+#endif
+
+#ifdef __cplusplus
+#define RENEW(a,b,c) {a=(b *)u_realloc((b *)(a),(c)*sizeof(b),__FILE__,__LINE__,#a); register_dvar(#a,c);}
+#else
 #define RENEW(a,b,c) a=(b *)u_realloc((b *)(a),(c)*sizeof(b),__FILE__,__LINE__,#a)
-#define SFREE(a) u_free(a,__FILE__,__LINE__,#a)
+#endif
+
+#ifdef __cplusplus
+#define SFREE(a) {u_free(a,__FILE__,__LINE__,#a); a=NULL; register_dvar(#a,0);}
+#else
+#define SFREE(a) {u_free(a,__FILE__,__LINE__,#a); a=NULL;}
+#endif
 
 // #define RENEW(a,b,c) a=(b *) realloc((b *)(a),(c)*sizeof(b))
 
@@ -65,6 +79,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+void register_dvar(char* name, size_t size);
 
 void FORTRAN(actideacti,(char *set,ITG *nset,ITG *istartset,ITG *iendset,
 			 ITG *ialset,char *objectset,ITG *ipkon,ITG *ibject,

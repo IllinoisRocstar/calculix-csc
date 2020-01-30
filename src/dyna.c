@@ -2034,7 +2034,7 @@ void dyna(double **cop, ITG *nk, ITG **konp, ITG **ipkonp, char **lakonp, ITG *n
   SFREE(aub);SFREE(z);SFREE(b);SFREE(zeta);SFREE(bj);SFREE(cd);SFREE(cv);
   SFREE(xforcact);SFREE(xloadact);SFREE(xbounact);SFREE(aa);SFREE(bb);SFREE(aanew);
   SFREE(ampli);SFREE(xbodyact);SFREE(bjp);SFREE(bp);SFREE(aamech);SFREE(ikactmech);
-  SFREE(xforcdiff);SFREE(xloaddiff);SFREE(xboundiff),SFREE(xbodydiff);
+  SFREE(xforcdiff);SFREE(xloaddiff);SFREE(xboundiff);SFREE(xbodydiff);
 
   if(*ithermal==1) {SFREE(t1act);SFREE(t1diff);}
 

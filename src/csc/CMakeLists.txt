@@ -1,4 +1,5 @@
 set (CLCXMODSRC
+    ${CMAKE_SOURCE_DIR}/src/csc/clcxInterface.C
     ${CMAKE_SOURCE_DIR}/src/csc/clcxCSC.C)
 set (CLCXDRVSRC
     ${CMAKE_SOURCE_DIR}/src/csc/clcxDRV.C)
@@ -21,12 +22,14 @@ target_link_libraries(clcxcsc
   ${NetCDF_LIBRARIES}
   Threads::Threads
   IMPACT::SITCOM
+  Boost::serialization
 )
 
 target_include_directories(clcxcsc
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include/clcx>
+        Boost::headers
 )
 
 target_include_directories(clcxcsc
@@ -45,10 +48,15 @@ install(TARGETS clcxcsc
 
 # csc module driver
 add_executable(clcx_drv ${CLCXDRVSRC})
+target_include_directories(clcx_drv
+    PUBLIC
+    IMPACT::SITCOM
+    IMPACT::SimOUT)
+
 target_link_libraries(clcx_drv
   ${MPI_LIBRARIES}
   IMPACT::SITCOM
-)
+  IMPACT::SimOUT)
 
 install(TARGETS clcx_drv
     RUNTIME DESTINATION bin

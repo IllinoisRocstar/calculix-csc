@@ -934,7 +934,7 @@ void dynacont(double *co, ITG *nk, ITG *kon, ITG *ipkon, char *lakon, ITG *ne,
   SFREE(aaa);SFREE(bbb);SFREE(bjbas);SFREE(bjinc);SFREE(dbj);SFREE(lhs);
   SFREE(ipiv);SFREE(bjbasp);SFREE(bjincp);SFREE(dbjp);SFREE(ilactcont);
   SFREE(dbcont);
-  SFREE(xforcdiff);SFREE(xloaddiff);SFREE(xboundiff),SFREE(xbodydiff);
+  SFREE(xforcdiff);SFREE(xloaddiff);SFREE(xboundiff);SFREE(xbodydiff);
 
   if(*ithermal==1) SFREE(t1diff);
   

@@ -33,6 +33,10 @@
 ITG myid = 0, nproc = 0;
 #endif
 
+// do nothing for regular executable
+void register_dvar(char* name,size_t sz)
+{}
+
 int main(int argc,char *argv[])
 {
   

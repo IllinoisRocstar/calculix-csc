@@ -82,6 +82,7 @@ find_package(Threads REQUIRED)
 if (ENABLE_CSC)
   find_package(IMPACT REQUIRED)
   add_definitions("-DHAVE_CSC")
+  find_package(Boost REQUIRED COMPONENTS serialization)
 endif()
 
 find_library(SPOOLES_LIB spooles HINTS /usr/lib /usr/local/lib)
