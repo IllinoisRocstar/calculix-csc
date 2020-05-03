@@ -38,7 +38,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "CalculiX.h"
-#include "spooles.h"
+#include "spooles-ccx.h"
 
 #if USE_MT
 int num_cpus = -1;

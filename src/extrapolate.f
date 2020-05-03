@@ -36,7 +36,7 @@
       logical force
 !
       character*1 cflag
-      character*8 lakon(*),lakonl
+      character*8 lakon(*), lakonl
 !
       integer ipkon(*),inum(*),kon(*),mi(*),ne,indexe,nope,
      &  nonei20(3,12),nfield,nonei10(3,6),nk,i,j,k,l,ndim,
@@ -428,8 +428,15 @@
 !     calculation of the integration point coordinates for
 !     output in the local system
 !
-         if((iorienloc.ne.0).and.
-     &        ((lakonl(7:8).eq.'LC').or.(ielorien(1,i).ne.0))) then
+! original : does continue evaluating the conditional and ielorien is a
+!            NULL array therefore access violation happens. I switched
+!            block if to bypass the issue.
+!         if((iorienloc.ne.0).and.
+!     &        ((lakonl(7:8).eq.'LC').or.(ielorien(1,i).ne.0))) then
+! masoud
+          if (iorienloc.ne.0) then
+           if ((lakonl(7:8).eq.'LC').or.(ielorien(1,i).ne.0)) then
+!
 !
             if(lakonl(7:8).ne.'LC') then
                iorien=ielorien(1,i)
@@ -851,6 +858,8 @@ c     Bernhardi end
                   enddo
                enddo
             endif
+! Masoud    
+          endif
          else
 !
 !        storage in global coordinates

@@ -24,7 +24,7 @@ void exitme(std::string msg = std::string());
 void procArgs(int argc, char *arg[]);
 
 // main driver program
-main(int argc, char *argv[]) {
+int main(int argc, char *argv[]) {
 
   // MPI communicator setup
   MPI_Init(&argc, &argv);
@@ -61,7 +61,7 @@ main(int argc, char *argv[]) {
       COM_LOAD_MODULE_STATIC_DYNAMIC(SimOUT, "OUT");
       int OUT_set = COM_get_function_handle("OUT.set_option");
       int OUT_write = COM_get_function_handle("OUT.write_dataitem");
-      COM_call_function(OUT_set, "format", "CGNS");
+      COM_call_function(OUT_set, "format", "HDF");
       int IN_all = COM_get_dataitem_handle("clcx_vol.all");
       std::cout << "IN_all handle = " << IN_all << std::endl;
       char time_level[33] = "";

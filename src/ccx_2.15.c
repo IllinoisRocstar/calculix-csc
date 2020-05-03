@@ -20,7 +20,7 @@
 #endif
 
 #ifdef CALCULIX_MPI
-#include <spoolesMPI.h>
+#include <MPI/spoolesMPI.h>
 #endif
 
 #include <stdlib.h>

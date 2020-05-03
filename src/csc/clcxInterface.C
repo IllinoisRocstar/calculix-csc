@@ -6,7 +6,9 @@
 #include <fstream>
 
 // used to register dynamic variable information
-std::map<std::string,size_t> dvar;
+extern "C" { 
+    std::map<char*,size_t> dvar;
+}
 
 clcx_interface::clcx_interface()
       : _vrb(0), myid(0), nproc(1), _step_initialized(false),
@@ -2059,7 +2061,6 @@ void clcx_interface::load(std::stringstream& ss)
 }
 
 #define STOREP(a,b) \
-    if (dvar[#a] != 0)\
     {\
         if (Archive::is_loading::value)\
         {\
@@ -2075,9 +2076,6 @@ void clcx_interface::load(std::stringstream& ss)
 template <typename Archive>
 void clcx_interface::serialize(Archive &ar, const unsigned int version) 
 { 
-  //  state registry variables
-  ar & dvar;
-
   // raw types
   ar & nk;
   ar & ne;
@@ -2380,12 +2378,4 @@ void clcx_interface::serialize(Archive &ar, const unsigned int version)
 #endif
   
 }
-
-// do nothing for library
-void register_dvar(char* name,size_t sz)
-{
-    /*std::cout << "Register " << std::string(name) << " size " << sz << std::endl;*/
-    dvar[name] = sz;
-}
-
 

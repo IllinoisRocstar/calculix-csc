@@ -77,8 +77,15 @@ endif(ENABLE_PAR)
 
 find_package(LAPACK REQUIRED)
 find_package(BLAS REQUIRED)
-find_package(Exodus REQUIRED)
 find_package(Threads REQUIRED)
+find_package(Exodus REQUIRED)
+find_package(NetCDF REQUIRED)
+#find_package(Spooles REQUIRED)
+#find_package(Arpack REQUIRED)
+
+include_directories(${EXODUS_INCLUDE_DIR})
+include_directories(${NetCDF_INCLUDE_DIR})
+
 if (ENABLE_CSC)
   find_package(IMPACT REQUIRED)
   add_definitions("-DHAVE_CSC")
@@ -89,15 +96,14 @@ find_library(SPOOLES_LIB spooles HINTS /usr/lib /usr/local/lib)
 if (SPOOLES_LIB MATCHES SPOOLES_LIB-NOTFOUND)
     message(FATAL_ERROR "SPOOLES was not found!")
 endif()
+if (SPOOLES_LIB)
+    get_filename_component(SPOOLES_PATH ${SPOOLES_LIB} DIRECTORY CACHE)
+    include_directories(${SPOOLES_PATH})
+endif()
 
 find_library(ARPACK_LIB arpack HINTS /usr/lib /usr/local/lib)
 if (ARPACK_LIB MATCHES ARPACK_LIB-NOTFOUND)
     message(FATAL_ERROR "ARPACK was not found!")
-endif()
-
-find_library(EXOII_LIB exoIIv2c HINTS /usr/lib /usr/local/lib)
-if (EXOII_LIB MATCHES EXOII_LIB-NOTFOUND)
-    message(FATAL_ERROR "EXODUS II was not found!")
 endif()
 
 ################

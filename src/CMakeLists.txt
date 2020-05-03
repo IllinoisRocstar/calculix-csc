@@ -654,6 +654,7 @@ set (SCCXF
   ${CMAKE_SOURCE_DIR}/src/rectcyltrfm.f
   ${CMAKE_SOURCE_DIR}/src/rectcylvi.f
   ${CMAKE_SOURCE_DIR}/src/refinemeshs.f
+  ${CMAKE_SOURCE_DIR}/src/register_dvar.C
   ${CMAKE_SOURCE_DIR}/src/reinit2.f
   ${CMAKE_SOURCE_DIR}/src/removetet2.f
   ${CMAKE_SOURCE_DIR}/src/reorderampl.f
