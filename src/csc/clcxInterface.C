@@ -2379,3 +2379,8 @@ void clcx_interface::serialize(Archive &ar, const unsigned int version)
   
 }
 
+void clcx_interface::set_jobname(std::string jn) {
+  strcpy(jobnamec, jn.c_str());
+  jn = jn + " ";
+  strcpy(jobnamef, jn.c_str());
+}

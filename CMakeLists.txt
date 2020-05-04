@@ -18,6 +18,11 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    message(STATUS "System is " ${CMAKE_SYSTEM_NAME})
+    set(CMAKE_MACOSX_RPATH 1)
+endif()
+
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release"
       CACHE STRING "Build type (Release, Debug, RelWithDebugInfo, MinSizeRel)")
@@ -33,6 +38,7 @@ endmacro(opt)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake/)
 
 # set options
+opt(TESTING "Enable testing" ${DEFAULT})
 opt(PAR "Builds parallel Epic solver" ON)
 opt(CSC "Builds solver driver and csc modules" ON)
 
@@ -44,15 +50,10 @@ add_definitions("-DSPOOLES")
 add_definitions("-DARPACK")
 add_definitions("-DEXODUSII")
 
-# compiled objects output paths
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-
 # setting RPATH
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
 set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
-set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+set(CMAKE_INSTALL_RPATH "$ORIGIN/../lib")
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
 ####################
@@ -80,8 +81,6 @@ find_package(BLAS REQUIRED)
 find_package(Threads REQUIRED)
 find_package(Exodus REQUIRED)
 find_package(NetCDF REQUIRED)
-#find_package(Spooles REQUIRED)
-#find_package(Arpack REQUIRED)
 
 include_directories(${EXODUS_INCLUDE_DIR})
 include_directories(${NetCDF_INCLUDE_DIR})
@@ -128,6 +127,13 @@ if (ENABLE_CSC)
     SOVERSION ${CLCX_MAJOR_VERSION})
 endif()
 
+#####################
+# perform testing
+#####################
+if(ENABLE_TESTING)
+  enable_testing()
+  add_subdirectory(testing)
+endif(ENABLE_TESTING)
 
 ############
 # packaging

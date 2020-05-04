@@ -61,6 +61,7 @@ public:
   bool step_completed();
   void step_finalize();
   void set_verb(const int vrb) { _vrb = vrb; };
+  void set_jobname(std::string jn);
 
   // internal management
 private:
