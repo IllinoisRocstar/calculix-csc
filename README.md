@@ -20,8 +20,9 @@ The following table contains all available CMake options to configure the projec
 
 | Option name            | Option description              | Default | Notes                            |
 |------------------------|---------------------------------|---------|----------------------------------|
-| ENABLE_PAR             | Enable MPI support              | ON     | Requires MPI compiler            |
-| ENABLE_CSC         | Enable coupling client                  | ON      | Requires IMPACT                            |
+| ENABLE_TESTING         | Enable Testing system           | ON      |                                  |
+| ENABLE_PAR             | Enable MPI support              | ON      | Requires MPI compiler            |
+| ENABLE_CSC             | Enable coupling client          | ON      | Requires IMPACT                  |
 
 ## Unix Building Instructions ##
 First install project depencies (on Ubuntu):
