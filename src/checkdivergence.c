@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include "CalculiX.h"
 #ifdef SPOOLES 
-   #include "spooles.h"
+   #include "spooles-ccx.h"
 #endif
 #ifdef SGI
    #include "sgi.h"
