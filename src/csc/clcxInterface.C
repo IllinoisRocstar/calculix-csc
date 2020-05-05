@@ -5,11 +5,6 @@
 #include "boost/serialization/array.hpp"
 #include <fstream>
 
-// used to register dynamic variable information
-extern "C" { 
-    std::map<char*,size_t> dvar;
-}
-
 clcx_interface::clcx_interface()
       : _vrb(0), myid(0), nproc(1), _step_initialized(false),
       _step_finalized(false), _is_dynamic(false), _is_static(false),

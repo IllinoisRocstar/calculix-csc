@@ -902,6 +902,7 @@ set(SCCXC
   ${CMAKE_SOURCE_DIR}/src/correctvelmain.c
   ${CMAKE_SOURCE_DIR}/src/dfdbj.c
   ${CMAKE_SOURCE_DIR}/src/dgmresmain.c
+  ${CMAKE_SOURCE_DIR}/src/dvar.C
   ${CMAKE_SOURCE_DIR}/src/dyna.c
   ${CMAKE_SOURCE_DIR}/src/dynacont.c
   ${CMAKE_SOURCE_DIR}/src/dynboun.c

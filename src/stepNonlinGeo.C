@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "CalculiX.h"
 #include "stepNonlinGeo.H"
 #include <math.h>
 #include <iostream>

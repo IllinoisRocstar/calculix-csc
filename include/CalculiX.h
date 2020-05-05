@@ -25,6 +25,10 @@
 #include <string.h>
 #include <pthread.h>
 
+#ifdef __cplusplus
+#include "dvar.H"
+#endif
+
 #define Linux 1
 #define IRIX 2
 #define IRIX64 3
@@ -79,8 +83,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-void register_dvar(char* name, size_t size);
 
 void FORTRAN(actideacti,(char *set,ITG *nset,ITG *istartset,ITG *iendset,
 			 ITG *ialset,char *objectset,ITG *ipkon,ITG *ibject,

@@ -1,9 +1,9 @@
 #include <map>
 #include <string>
+#include "dvar.H"
 
-extern "C" {
 
-std::map<char *, size_t> dvar;
+//extern std::map<char *, size_t> dvar;
 
 void register_dvar(char *name, size_t sz) {
   /*std::cout << "Register " << std::string(name) << " size " << sz <<
@@ -11,4 +11,3 @@ void register_dvar(char *name, size_t sz) {
   dvar[name] = sz;
 }
 
-}
