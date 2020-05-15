@@ -551,7 +551,7 @@ void clcx_interface::postInit(){
   SFREE(idefbody);
 
   if (nheading_ >= 0) {
-    writeheading(jobnamec, heading, &nheading_);
+    writeHeading(jobnamec, heading, &nheading_);
     SFREE(heading);
     nheading_ = -1;
   }

@@ -1,4 +1,3 @@
-
 /*     CALCULIX - A 3-dimensional finite element program                 */
 /*              Copyright (C) 1998-2018 Guido Dhondt                     */
 
@@ -584,6 +583,9 @@ void FORTRAN(calcstabletimeincvol,(ITG *ne0,char *lakon,double *co,
 void FORTRAN(calcstressheatflux,(double *sti,double *umel,double *gradvel,
              double *qfx,double *hcel,double *gradtel,ITG *nef,ITG *isti,
 	     ITG *iqfx,ITG *mi));
+
+void calcElmVols(ITG *nk,ITG *ne,double *co,ITG *kon,ITG *ipkon,char *lakon,
+       double *elemvols);
 
 void FORTRAN(calcttel,(ITG *nef,double *vel,double *shcon,ITG *nshcon,
                        ITG *ielmatf,ITG *ntmat_,ITG *mi,double *physcon,
@@ -4690,7 +4692,10 @@ void FORTRAN(writeevcscomplex,(double *eigxx,ITG *nev,ITG *nm,double *fmin,
 
 void FORTRAN(writehe,(ITG *));
 
-void writeheading(char *jobnamec,char *heading,ITG *nheading);
+void writeHeading(char *jobnamec,char *heading,ITG *nheading);
+
+void writeHomogenizedVals(double *stn,double *een,ITG *nk,ITG *ne,double *co,
+        ITG *kon,ITG *ipkon,double tStep, double *elemvols);
 
 void FORTRAN(writeim,());
 

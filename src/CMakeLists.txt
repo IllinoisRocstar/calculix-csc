@@ -874,6 +874,7 @@ set(SCCXC
   ${CMAKE_SOURCE_DIR}/src/arpackbu.c
   ${CMAKE_SOURCE_DIR}/src/arpackcs.c
   ${CMAKE_SOURCE_DIR}/src/biosav.c
+  ${CMAKE_SOURCE_DIR}/src/calcElmVols.c
   ${CMAKE_SOURCE_DIR}/src/calcfluxmain.c
   ${CMAKE_SOURCE_DIR}/src/calcgammatmain.c
   ${CMAKE_SOURCE_DIR}/src/calcgammavmain.c
@@ -1031,7 +1032,8 @@ set(SCCXC
   ${CMAKE_SOURCE_DIR}/src/v_betrag.c
   ${CMAKE_SOURCE_DIR}/src/v_prod.c
   ${CMAKE_SOURCE_DIR}/src/v_result.c
-  ${CMAKE_SOURCE_DIR}/src/writeheading.c )
+  ${CMAKE_SOURCE_DIR}/src/writeHeading.c
+  ${CMAKE_SOURCE_DIR}/src/writeHomogenizedVals.c )
 
 set(SCCXCXX
   ${CMAKE_SOURCE_DIR}/src/umat_dl.cpp)
