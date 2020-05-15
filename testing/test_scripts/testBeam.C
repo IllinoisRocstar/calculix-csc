@@ -17,7 +17,7 @@ int compareFiles(std::string fn1, std::string fn2)
 	f2.open(fn2, std::fstream::in);
 	char string1[256], string2[256];
 	int j = 0;
-	while(!f1.eof())
+	while(!f1.fail())
 	{
 		f1.getline(string1,256);
 		f2.getline(string2,256);

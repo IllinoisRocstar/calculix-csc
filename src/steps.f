@@ -229,6 +229,12 @@
                   endif
                enddo
             endif
+         elseif(textpart(i)(1:14).eq.'HOMOGENIZATION') then
+           iperturb(3)=1
+           write(*,*) '*INFO reading *STEP: homogenization'
+           write(*,*) '      of stresses and strains are '
+           write(*,*) '      turned on'
+           write(*,*)
          else
             write(*,*) 
      &          '*WARNING reading *STEP: parameter not recognized:'

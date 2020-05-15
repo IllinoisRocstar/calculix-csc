@@ -94,5 +94,7 @@ endmacro()
 if (ENABLE_CSC)
     CLX_add_test_executable(Beam)
     CLX_add_test(beam Beam beam beam beam-ref.dat)
+    CLX_add_test_executable(Homogenization)
+    CLX_add_test(homogenization Homogenization homogenization AL_Calc_0.5 h_ref.csv)
 endif()
 

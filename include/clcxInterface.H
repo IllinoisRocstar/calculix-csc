@@ -217,7 +217,7 @@ public:
   ITG istat;
   ITG nboun_ = 0;
   ITG nintpoint = 0;
-  ITG iperturb[2] = {0, 0};
+  ITG iperturb[3] = {0, 0, 0};
   ITG nmat;
   ITG ntmat_ = 0;
   ITG norien;

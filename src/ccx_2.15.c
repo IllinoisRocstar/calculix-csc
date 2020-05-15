@@ -68,7 +68,7 @@ ITG nk,ne,nboun,nmpc,nforc,nload,nprint=0,nset,nalset,nentries=17,
   nmethod,neq[3]={0,0,0},i,mpcfree=1,mei[4],j,nzl,nam,nbounold=0,
   nforcold=0,nloadold=0,nbody,nbody_=0,nbodyold=0,network=0,nheading_=0,
   k,nzs[3],nmpc_=0,nload_=0,nforc_=0,istep,istat,nboun_=0,nintpoint=0,
-  iperturb[2]={0,0},nmat,ntmat_=0,norien,ithermal[2]={0,0},nmpcold,
+  iperturb[3]={0,0,0},nmat,ntmat_=0,norien,ithermal[2]={0,0},nmpcold,
   iprestr,kode,isolver=0,nslavs=0,nkon_=0,ne0,nkon0,mortar=0,
   jout[2]={1,1},nlabel,nkon=0,idrct,jmax[2],iexpl,nevtot=0,ifacecount=0,
   iplas=0,npmat_=0,mi[3]={0,3,1},ntrans,mpcend=-1,namtot_=0,iumat=0,
@@ -614,13 +614,13 @@ while(istat>=0) {
     calculix_registerExternalBehaviour(matname+80*i);
   }
 #endif /* CALCULIX_EXTERNAL_BEHAVIOURS_SUPPORT */
-  
+
   if((istep==1)&&(mortar==-1)){mortar=0;}else{icontact=1;}
 
   nload0=nload;SFREE(idefforc);SFREE(idefload);SFREE(idefbody);
 
   if(nheading_>=0){
-      writeheading(jobnamec,heading,&nheading_);
+      writeHeading(jobnamec,heading,&nheading_);
       SFREE(heading);
       nheading_=-1;
   }

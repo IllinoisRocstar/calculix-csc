@@ -216,6 +216,14 @@ void nonlingeo(double **cop, ITG *nk, ITG **konp, ITG **ipkonp, char **lakonp,
   }
   nslavs_prev_step=*nslavs;
 
+  // Initiate File
+  if (iperturb[2]==1) {
+    FILE *fp;
+    fp=fopen("homogenization.csv","w");
+    fprintf(fp,"Time,E11,E22,E33,E23,E13,E12,S11,S22,S33,S23,S13,S12\n");
+    fclose(fp);
+  }
+
   /* turbulence model 
      iturbulent==0: laminar
      iturbulent==1: k-epsilon
@@ -2759,6 +2767,7 @@ void nonlingeo(double **cop, ITG *nk, ITG **konp, ITG **ipkonp, char **lakonp,
       ++*kode;
       if(*mcs!=0){
 	ptime=*ttime+time;
+  
 	frdcyc(co,nk,kon,ipkon,lakon,ne,v,stn,inum,nmethod,kode,filab,een,
 	       t1act,fn,&ptime,epn,ielmat,matname,cs,mcs,nkon,enern,xstaten,
                nstate_,istep,&iinc,iperturb,ener,mi,output,ithermal,qfn,
@@ -2776,6 +2785,13 @@ void nonlingeo(double **cop, ITG *nk, ITG **konp, ITG **ipkonp, char **lakonp,
 	  }
 
 	  ptime=*ttime+time;
+    if (iperturb[2]==1) {
+      double *elemvols=NULL;
+      NNEW(elemvols,double,*ne);
+      calcElmVols(nk,ne,co,kon,ipkon,lakon,elemvols);
+      writeHomogenizedVals(stn,een,nk,ne,co,kon,ipkon,ptime,elemvols);
+    }
+
 	  frd(co,nk,kon,ipkon,lakon,&ne0,v,stn,inum,nmethod,
 	    kode,filab,een,t1act,fn,&ptime,epn,ielmat,matname,enern,xstaten,
 	    nstate_,istep,&iinc,ithermal,qfn,&mode,&noddiam,trab,inotr,
@@ -2862,6 +2878,12 @@ void nonlingeo(double **cop, ITG *nk, ITG **konp, ITG **ipkonp, char **lakonp,
     ++*kode;
     if(*mcs>0){
 	ptime=*ttime+time;
+    if (iperturb[2]==1) {
+      double *elemvols=NULL;
+      NNEW(elemvols,double,*ne);
+      calcElmVols(nk,ne,co,kon,ipkon,lakon,elemvols);
+      writeHomogenizedVals(stn,een,nk,ne,co,kon,ipkon,ptime,elemvols);
+    }
       frdcyc(co,nk,kon,ipkon,lakon,ne,v,stn,inum,nmethod,kode,filab,een,
 	     t1act,fn,&ptime,epn,ielmat,matname,cs,mcs,nkon,enern,xstaten,
              nstate_,istep,&iinc,iperturb,ener,mi,output,ithermal,qfn,
@@ -2880,6 +2902,12 @@ void nonlingeo(double **cop, ITG *nk, ITG **konp, ITG **ipkonp, char **lakonp,
 	}
 
 	ptime=*ttime+time;
+  if (iperturb[2]==1) {
+    double *elemvols=NULL;
+    NNEW(elemvols,double,*ne);
+    calcElmVols(nk,ne,co,kon,ipkon,lakon,elemvols);
+    writeHomogenizedVals(stn,een,nk,ne,co,kon,ipkon,ptime,elemvols);
+  }
 	frd(co,nk,kon,ipkon,lakon,&ne0,v,stn,inum,nmethod,
 	    kode,filab,een,t1act,fn,&ptime,epn,ielmat,matname,enern,xstaten,
 	    nstate_,istep,&iinc,ithermal,qfn,&mode,&noddiam,trab,inotr,

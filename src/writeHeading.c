@@ -21,7 +21,8 @@
 #include <string.h>
 #include "CalculiX.h"
 
-void writeheading(char *jobnamec,char *heading,ITG *nheading_){
+
+void writeHeading(char *jobnamec,char *heading,ITG *nheading_){
     
     /* writes the headers in the frd-file */
     
