@@ -20,38 +20,12 @@ set(TEST_SCRIPTS ${CMAKE_CURRENT_SOURCE_DIR}/test_scripts)
 set(TEST_DATA ${CMAKE_CURRENT_BINARY_DIR}/test_data)
 
 # Set environment variables for testing.
-if(WIN32)
-  # Note: Do not indent. The indentation whitespace is added to the variable!
-  set(TEST_ENV_PATH_OPTIONS
-      "PATH=${CMAKE_CURRENT_BINARY_DIR};\
-${CMAKE_BINARY_DIR};\
-${CMAKE_BINARY_DIR}/contrib/madlib-1.3.0;\
-${CMAKE_BINARY_DIR}/contrib/madlib-1.3.0/Contrib/ANN;\
-${gtest_BINARY_DIR};\
-${VTK_LIB_DIR};\
-${GMSH_LIB_PATH};\
-${NETGEN_LIBRARY_DIR};${NETGEN_LIBRARY_DIR}/../bin;\
-${ZLIB_LIB_PATH};${ZLIB_LIB_PATH}/../bin;\
-${METIS_LIB_PATH};\
-${CGNS_LIB_PATH};${CGNS_LIB_PATH}/../bin;\
-${HDF5_LIB_PATH};${HDF5_LIB_PATH}/../bin;\
-${EXO_LIB_PATH};${EXO_LIB_PATH}/../bin;\
-${netCDF_LIB_DIR};${netCDF_LIB_DIR}/../bin;\
-${SIMMETRIX_LIB_DIR};\
-$ENV{PATH}")
-  set(TEST_ENV_LD_OPTIONS
-      "LD_LIBRARY_PATH=${LD_LIBRARY_PATH}")
-else()
-  set(TEST_ENV_PATH_OPTIONS "PATH=${CMAKE_CURRENT_BINARY_DIR}:$ENV{PATH}")
-  # Note: Do not indent. The indentation whitespace is added to the variable!
-  set(TEST_ENV_LD_OPTIONS
-      "LD_LIBRARY_PATH=${CMAKE_CURRENT_BINARY_DIR}:\
-${CMAKE_BINARY_DIR}:\
-${VTK_LIB_DIR}:\
-${NETGEN_LIBRARY_DIR}:\
-${OpenCASCADE_LIBRARY_DIR}:\
+set(TEST_ENV_PATH_OPTIONS "PATH=${CMAKE_RUNTIME_OUTPUT_DIRECTORY}:$ENV{PATH}")
+# Note: Do not indent. The indentation whitespace is added to the variable!
+set(TEST_ENV_LD_OPTIONS
+"LD_LIBRARY_PATH=${CMAKE_LIBRARY_DIR}:\
+${CMAKE_LIBRARY_OUTPUT_DIRECTORY}:\
 $ENV{LD_LIBRARY_PATH}")
-endif()
 
 message(STATUS "Test Env Options: ${TEST_ENV_PATH_OPTIONS} ${TEST_ENV_LD_OPTIONS}")
 

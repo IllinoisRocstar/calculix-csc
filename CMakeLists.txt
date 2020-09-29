@@ -5,18 +5,36 @@ cmake_minimum_required(VERSION 3.6)
 #########################
 set(CLCX_MAJOR_VERSION 2)
 set(CLCX_MINOR_VERSION 15)
-set(CLCX_PATCH_VERSION 0)
-set(CLCX_EXTRA_VERSION "" CACHE STRING "with CSC Module")
+set(CLCX_PATCH_VERSION 2)
+set(CLCX_EXTRA_VERSION "" CACHE STRING "with CSC module")
 set(CLCX_VERSION "${CLCX_MAJOR_VERSION}.${CLCX_MINOR_VERSION}")
 set(CLCX_VERSION "${CLCX_VERSION}.${CLCX_PATCH_VERSION}${CLCX_EXTRA_VERSION}")
 set(CLCX_SHORT_LICENSE "GPL")
 set(PROJECT_NAME "CLCX version ${CLCX_VERSION}")
-
+set(CLCX_AUTHOR
+    "Masoud Safdari (build system and CSC extensions)"
+    "Akash Patel (homogenization extensiosn)"
+    "Guido Dhondt (original CalculiX developer)"
+    "Klaus Wittig (original CalculiX developer)"
+    "Peter A. Gustafson (CalculiX patches)")
+set(CLCX_AUTHOR_EMAIL "msafdari@illinoisrocstar.com")
 project(${PROJECT_NAME} Fortran CXX C)
 
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Set a default build type if none was specified
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  message(STATUS "Setting build type to 'Release' as none was specified.")
+  set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Choose the type of build.")
+endif()
+
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     message(STATUS "System is " ${CMAKE_SYSTEM_NAME})
@@ -28,7 +46,6 @@ if(NOT CMAKE_BUILD_TYPE)
       CACHE STRING "Build type (Release, Debug, RelWithDebugInfo, MinSizeRel)")
 endif()
 
-set(DEFAULT ON CACHE INTERNAL "Default value for enabled-by-default options")
 macro(opt OPTION HELP VALUE)
   option(ENABLE_${OPTION} ${HELP} ${VALUE})
   set(OPT_TEXI "${OPT_TEXI}\n@item ENABLE_${OPTION}\n${HELP} (default: ${VALUE})")
@@ -38,17 +55,18 @@ endmacro(opt)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake/)
 
 # set options
-opt(TESTING "Enable testing" ${DEFAULT})
+opt(TESTING "Enable testing" ON)
 opt(PAR "Builds parallel Epic solver" ON)
 opt(CSC "Builds solver driver and csc modules" ON)
+opt(CFD_SUPPORT "Enables usage of offline CFD data" OFF)
 
 # default definitions
 add_definitions("-DUSE_MT")
 add_definitions("-DARCH=Linux")
 #add_definitions("-DMATRIXSTORAGE")
+add_definitions("-DEXODUSII")
 add_definitions("-DSPOOLES")
 add_definitions("-DARPACK")
-add_definitions("-DEXODUSII")
 
 # setting RPATH
 set(CMAKE_SKIP_BUILD_RPATH FALSE)
@@ -88,10 +106,10 @@ include_directories(${NetCDF_INCLUDE_DIR})
 if (ENABLE_CSC)
   find_package(IMPACT REQUIRED)
   add_definitions("-DHAVE_CSC")
-  find_package(Boost REQUIRED COMPONENTS serialization)
+  find_package(Boost 1.48 REQUIRED COMPONENTS serialization iostreams)
 endif()
 
-find_library(SPOOLES_LIB spooles HINTS /usr/lib /usr/local/lib)
+find_library(SPOOLES_LIB spooles spooles.a HINTS /usr/lib /usr/local/lib ENV SPOOLES_DIR)
 if (SPOOLES_LIB MATCHES SPOOLES_LIB-NOTFOUND)
     message(FATAL_ERROR "SPOOLES was not found!")
 endif()
@@ -100,9 +118,19 @@ if (SPOOLES_LIB)
     include_directories(${SPOOLES_PATH})
 endif()
 
-find_library(ARPACK_LIB arpack HINTS /usr/lib /usr/local/lib)
+find_library(ARPACK_LIB arpack arpack_x64 arpack_MAC HINTS /usr/lib /usr/local/lib ENV ARPACK_DIR)
 if (ARPACK_LIB MATCHES ARPACK_LIB-NOTFOUND)
     message(FATAL_ERROR "ARPACK was not found!")
+endif()
+
+if(ENABLE_CFD_SUPPORT)
+    find_library(FLANN_LIB flann PATH_SUFFIXES lib)
+    find_path(FLANN_INC "flann.h" PATH_SUFFIXES src include flann)
+    if (FLANN_LIB MATCHES FLANN_LIB-NOTFOUND)
+        message(FATAL_ERROR "The flann library was not found!")
+    endif()
+    include_directories(${FLANN_INC})
+    add_definitions("-DHAVE_CFD")
 endif()
 
 ################

@@ -229,7 +229,7 @@ c      if((iperturb(1).ge.2).or.((iperturb(1).le.1).and.(iout.lt.0)))
 !
                   bnac=(xboun(i)-v(ndir,node))/
      &                 (bet*dtime*dtime)
-                  if(nint(dtime*1.d28).ne.123571113) then
+                  if(dtime + 1.235711130e-8 < 100 * epsilon(dtime)) then
                      veold(ndir,node)=veold(ndir,node)+
      &                    gam*dtime*bnac
                   endif

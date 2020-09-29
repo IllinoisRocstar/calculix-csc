@@ -1,12 +1,13 @@
 #ifndef CLCXINTERFACE_H
 #define CLCXINTERFACE_H
 
-#include <string>
-#include <sstream>
-#include <map>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
 #include <boost/archive/text_iarchive.hpp>
 #include <boost/archive/text_oarchive.hpp>
-
+#include <map>
+#include <sstream>
+#include <string>
 
 // Calculix
 #include "CalculiX.h"
@@ -15,6 +16,7 @@ class stepNonlinGeo;
 
 class clcx_interface {
 
+  typedef void (*fptr_update_bc)(void *, double);
 
 public:
   clcx_interface();
@@ -61,6 +63,16 @@ public:
   void step_finalize();
   void set_verb(const int vrb) { _vrb = vrb; };
   void set_jobname(std::string jn);
+  void init_files();
+  double get_current_time();
+
+public:
+  // for external access to the update handler
+  void register_update_bc(fptr_update_bc update_bc, void *callee_context) {
+    _update_bc = update_bc;
+    _callee_context = callee_context;
+  };
+  void update_bc(double dt) { _update_bc(_callee_context, dt); };
 
   // internal management
 private:
@@ -77,9 +89,12 @@ private:
   friend class boost::serialization::access;
   template <typename Archive>
   void serialize(Archive &ar, const unsigned int version);
+
 public:
-  void save(std::stringstream& ss);
-  void load(std::stringstream& ss);
+  void save(std::stringstream &ss);
+  void load(std::stringstream &ss);
+  void save(std::ofstream &ss);
+  void load(std::ifstream &ss);
 
   // sharable data used by calculix
   // TODO: most of these should be turned to private
@@ -87,6 +102,8 @@ public:
   ITG myid = 0;
   ITG nproc = 0;
   FILE *f1;
+  fptr_update_bc _update_bc;
+  void *_callee_context;
 
   // raw data used by calculix
 public:
@@ -100,17 +117,17 @@ public:
   char *labmpc = NULL;
   char *prlab = NULL;
   char *prset = NULL;
-  char jobnamec[660] = "";
-  char jobnamef[132] = "";
-  char output[4] = "exo";
+  char jobnamec[660] = {'\0'};
+  char jobnamef[132] = {'\0'};
+  char output[4] = {'e', 'x', 'o', '\0'};
   char *typeboun = NULL;
   char *inpc = NULL;
   char *tieset = NULL;
   char *cbody = NULL;
-  char fneig[132] = "";
+  char fneig[132] = {'\0'};
   char *sideloadtemp = NULL;
-  char kind1[2] = "T";
-  char kind2[2] = "T";
+  char kind1[2] = {'T', '\0'};
+  char kind2[2] = {'T', '\0'};
   char *heading = NULL;
   char *objectset = NULL;
 

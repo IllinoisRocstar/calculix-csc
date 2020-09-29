@@ -1,3 +1,3 @@
 #include "dvar.H"
 
-std::map<char*,size_t> dvar;
+std::map<std::string, size_t> dvar;
