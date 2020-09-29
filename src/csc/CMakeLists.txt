@@ -18,11 +18,13 @@ target_link_libraries(clcxcsc
   ${BLAS_LIBRARIES}
   ${SPOOLES_LIB}
   ${ARPACK_LIB}
+  ${FLANN_LIB}
   ${EXODUS_LIBRARIES}
   ${NetCDF_LIBRARIES}
   Threads::Threads
   IMPACT::SITCOM
   Boost::serialization
+  Boost::iostreams
 )
 
 target_include_directories(clcxcsc
@@ -34,9 +36,9 @@ target_include_directories(clcxcsc
 
 target_include_directories(clcxcsc
     SYSTEM PUBLIC
-    /usr/include/spooles
-    /usr/include/spooles/MT
-    /usr/include/spooles/MPI)
+    ${SPOOLES_PATH}
+    ${SPOOLES_PATH}/MT
+    ${SPOOLES_PATH}/MPI)
 
 install(TARGETS clcxcsc
     EXPORT clcxcsc

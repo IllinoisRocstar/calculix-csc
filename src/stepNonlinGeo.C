@@ -631,10 +631,11 @@ void stepNonlinGeo::initialize(
      for face-to-face penalty contact */
 
   dthetaref = dtheta;
-  if ((dtheta <= 1.e-6) && (*iexpl <= 1)) {
+  if ((dtheta <= 1.e-9) && (*iexpl <= 1)) {
     printf("\n *ERROR in nonlingeo\n");
     printf(" increment size smaller than one millionth of step size\n");
     printf(" increase increment size\n\n");
+    throw;
   }
   *tmin = *tmin / (*tper);
   *tmax = *tmax / (*tper);
@@ -712,7 +713,8 @@ void stepNonlinGeo::initialize(
              ncocon, ntmat_, lakon));
 
     time = 0.;
-    dtime = 1.;
+//    dtime = -1.;
+    dtime = -1.235711130e-8;
 
     /*  updating the nonlinear mpc's (also affects the boundary
         conditions through the nonhomogeneous part of the mpc's)
@@ -1106,7 +1108,12 @@ void stepNonlinGeo::increment(
     char *orname, double *vel, ITG *nef, double *velo, double *veloo) {
 
   //while ((1. - theta > 1.e-6) || (negpres == 1)) {
-  while ((theta_t - theta > 1.e-6) || (negpres == 1)) {
+  std::cout << "theta_t = " << theta_t << " theta = " << theta << std::endl; 
+  std::cout << "dtheta = " << dtheta << std::endl; 
+  while ((theta_t - theta > 1.e-9) || (negpres == 1)) {
+
+    // requesting a sync update for FSI boundary conditions
+    update_bc(theta*(*tper));
 
     if (icutb == 0) {
 
@@ -2553,7 +2560,7 @@ void stepNonlinGeo::increment(
          for face-to-face contact
          only done at the end of a step */
 
-      if ((*mortar == 1) && (1. - theta - dtheta <= 1.e-6)) {
+      if ((*mortar == 1) && (1. - theta - dtheta <= 1.e-9)) {
         FORTRAN(negativepressure, (&ne0, ne, mi, stx, &pressureratio));
       } else {
         pressureratio = 0.;
@@ -2901,7 +2908,7 @@ void stepNonlinGeo::increment(
       SFREE(nz);
 
       if (negpres == 0) {
-        if ((*mortar == 1) && (1. - theta - dtheta <= 1.e-6) &&
+        if ((*mortar == 1) && (1. - theta - dtheta <= 1.e-9) &&
             (itruecontact == 1)) {
           printf(" pressure ratio (smallest/largest pressure over all contact "
                  "areas) =%e\n\n",
@@ -2909,8 +2916,8 @@ void stepNonlinGeo::increment(
           if (pressureratio < -0.05) {
             printf(" zero-size increment is appended\n\n");
             negpres = 1;
-            theta = 1. - 1.e-6;
-            dtheta = 1.e-6;
+            theta = 1. - 1.e-9;
+            dtheta = 1.e-9;
           }
         }
       } else {
@@ -3573,7 +3580,8 @@ int stepNonlinGeo::set_step_target_time(const double step_tt) {
   if (clcx_nmethod == 1) {
     theta = 0;
     *tper = 1.0;
-    dtheta = 1.0;
+    //dtheta = 1.0; // set default value set by input file
+    theta_t = 1.0;
   } else {
     // if dynamic simulation, we still go based on the final time requested
     // for this step in the input file (tper). We take step_dt, and adjust

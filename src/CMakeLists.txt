@@ -1060,8 +1060,8 @@ target_link_libraries(clcx
   ${MPI_LIBRARIES}
   ${LAPACK_LIBRARIES}
   ${BLAS_LIBRARIES}
-  ${SPOOLES_LIB}
   ${ARPACK_LIB}
+  ${SPOOLES_LIB}
   ${EXODUS_LIBRARIES}
   ${NetCDF_LIBRARIES}
   Threads::Threads
@@ -1075,9 +1075,9 @@ target_include_directories(clcx
 
 target_include_directories(clcx
     SYSTEM PUBLIC
-    /usr/include/spooles
-    /usr/include/spooles/MT
-    /usr/include/spooles/MPI)
+    ${SPOOLES_PATH}
+    ${SPOOLES_PATH}/MT
+    ${SPOOLES_PATH}/MPI)
 
 install(TARGETS clcx
     EXPORT clcx

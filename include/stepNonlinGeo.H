@@ -5,8 +5,10 @@
 
 class stepNonlinGeo {
 
+  typedef void (*fptr_update_bc)(void *, double);
+
 public:
-  stepNonlinGeo(){};
+  stepNonlinGeo() = default;
   ~stepNonlinGeo();
 
   // public access major methods
@@ -112,8 +114,16 @@ public:
 
   int set_step_target_time(const double step_tt);
   bool is_completed();
+  double get_total_increment_time() { return (theta * (*tper)); };
 
- // local management
+public:
+  void register_update_bc(fptr_update_bc update_bc, void *callee_context) {
+    _update_bc = update_bc;
+    _callee_context = callee_context;
+  };
+  void update_bc(double t) { _update_bc(_callee_context, t); }
+
+  // local management
 private:
   ITG clcx_nmethod;
   double theta_t = 0;
@@ -500,6 +510,8 @@ private:
   // state variable
 private:
   FILE *f1;
+  fptr_update_bc _update_bc;
+  void *_callee_context;
 };
 
 #endif

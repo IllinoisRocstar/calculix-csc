@@ -3,12 +3,18 @@
 #include "stepNonlinGeo.H"
 #include "boost/serialization/map.hpp"
 #include "boost/serialization/array.hpp"
+#include <boost/iostreams/filtering_streambuf.hpp>
+#include <boost/iostreams/filter/zlib.hpp>
 #include <fstream>
+
+void clcx_interface_upd_bc_wrapper(void *context, double dt) {
+  static_cast<clcx_interface *>(context)->update_bc(dt);
+}
 
 clcx_interface::clcx_interface()
       : _vrb(0), myid(0), nproc(1), _step_initialized(false),
       _step_finalized(false), _is_dynamic(false), _is_static(false),
-      _is_thermal(false)
+      _is_thermal(false), nlgeo(nullptr), _update_bc(nullptr)
 {}
 
 void clcx_interface::init()
@@ -1797,6 +1803,7 @@ void clcx_interface::step_initialize() {
 
   // nonlingeo_initialize(
   nlgeo = new stepNonlinGeo();
+  nlgeo->register_update_bc(&clcx_interface_upd_bc_wrapper, this);
   nlgeo->initialize(
       &co, &nk, &kon, &ipkon, &lakon, &ne, nodeboun, ndirboun, xboun, &nboun,
       &ipompc, &nodempc, &coefmpc, &labmpc, &nmpc, nodeforc, ndirforc, xforc,
@@ -2043,14 +2050,46 @@ void clcx_interface::step(const double &stp_tt) {
 
 void clcx_interface::save(std::stringstream& ss)
 {
-  boost::archive::text_oarchive oa{ss};
+  boost::iostreams::filtering_ostreambuf fos;
+  // push the stringstream and the compressor
+  fos.push(boost::iostreams::zlib_compressor(boost::iostreams::zlib::best_compression));
+  fos.push(ss);
+  // start the archive on the filtering buffer
+  boost::archive::binary_oarchive oa{fos};
+  oa << (*this);
+  //std::cout << "SAVE STATE -> " << ss.str() << std::endl;
+}
+
+void clcx_interface::save(std::ofstream& fs)
+{
+  boost::iostreams::filtering_ostreambuf fos;
+  // push the stringstream and the compressor
+  fos.push(boost::iostreams::zlib_compressor(boost::iostreams::zlib::best_compression));
+  fos.push(fs);
+  // start the archive on the filtering buffer
+  boost::archive::binary_oarchive oa{fos};
   oa << (*this);
   //std::cout << "SAVE STATE -> " << ss.str() << std::endl;
 }
 
 void clcx_interface::load(std::stringstream& ss)
 {
-  boost::archive::text_iarchive ia{ss};
+  boost::iostreams::filtering_istreambuf fis;
+  // push the ifstream and the decompressor
+  fis.push(boost::iostreams::zlib_decompressor());
+  fis.push(ss);
+  boost::archive::binary_iarchive ia{fis};
+  ia >> (*this);
+  //std::cout << "LOAD STATE -> " << ss.str() << std::endl;
+}
+
+void clcx_interface::load(std::ifstream& fs)
+{
+  boost::iostreams::filtering_istreambuf fis;
+  // push the ifstream and the decompressor
+  fis.push(boost::iostreams::zlib_decompressor());
+  fis.push(fs);
+  boost::archive::binary_iarchive ia{fis};
   ia >> (*this);
   //std::cout << "LOAD STATE -> " << ss.str() << std::endl;
 }
@@ -2061,7 +2100,6 @@ void clcx_interface::load(std::stringstream& ss)
         {\
             /* assert(a == nullptr);\*/\
             /*std::cout << "Allocating " << #a << " size " << dvar[#a] << std::endl;*/\
-            /*std::cout << "Allocating " << #a << " size " << dvar[#a] << std::endl;*/\
             a = new b[dvar[#a]];\
         }\
         /*std::cout << "Restoring " << #a << " size " << dvar[#a] << std::endl;*/\
@@ -2070,7 +2108,10 @@ void clcx_interface::load(std::stringstream& ss)
 
 template <typename Archive>
 void clcx_interface::serialize(Archive &ar, const unsigned int version) 
-{ 
+{
+  // map
+  ar & dvar;
+
   // raw types
   ar & nk;
   ar & ne;
@@ -2379,3 +2420,19 @@ void clcx_interface::set_jobname(std::string jn) {
   jn = jn + " ";
   strcpy(jobnamef, jn.c_str());
 }
+
+void clcx_interface::init_files() {
+  FORTRAN(openfile, (jobnamef, output));
+}
+
+double clcx_interface::get_current_time() {
+    if (nlgeo == nullptr)
+        return (ttime);
+    return(ttime + nlgeo->get_total_increment_time());
+}
+
+void clcx_interface_wrapper(void *context, double dt) {
+  static_cast<clcx_interface *>(context)->update_bc(dt);
+}
+
+
