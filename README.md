@@ -25,6 +25,7 @@ The following table contains all available CMake options to configure the projec
 | ENABLE_CFD_SUPPORT     | Enable offline CFD data I/O     | OFF     | Requires flann                   |
 
 ## Linux Build Instructions ##
+
 First install project dependencies. For Ubuntu systems:
 ```
 sudo apt install libarpack2-dev libspooles-dev libexodusii-dev libboost-serialization-dev libboost-iostreams-dev libflann-dev libspooles-dev libarpack2-dev
@@ -34,7 +35,6 @@ For CentOS systems (make sure EPEL repository is installed):
 ```
 sudo yum install arpack-devel exodusii-devel boost-serialization boost-iostreams boost-devel flann-devel
 ```
-
 You will need to build the IMPACT dependency from source:
 
 * IMPACT (available at [here](https://github.com/IllinoisRocstar/IMPACT))
@@ -45,19 +45,17 @@ For instructions regarding building IMPACT please refer to [here](https://github
 * SPOOLES (available [here](http://www.netlib.org/linalg/spooles/spooles.2.2.tgz))
 
 Now, you can compile the project:
-
 ```
 $ export IMPACT_INSTALL_PATH=full_path_to_impact_install_dir
 $ mkdir build
 $ cd build
 $ cmake .. \
-    -DCMAKE_PREFIX_PATH=${IMPACT_INSTALL_PATH} \
-    -DBUILD_SHARED_LIBS=ON 
+-DCMAKE_PREFIX_PATH=${IMPACT_INSTALL_PATH} \
+-DBUILD_SHARED_LIBS=ON 
 $ make -j$(nproc) 
 $ make install 
 ```
 if you have manually compiled ARPACK and SPOOLES, and they are not installed on default system location then you can make specify the location of the projects before running cmake:
-
 ```
 $ export SPOOLES_DIR=full_path_to_spooles_root_dir
 $ export ARPACK_DIR=full_path_to_arpack_root_dir
@@ -65,7 +63,14 @@ $ cmake ..
 $ make -j$(nproc) 
 $ make install 
 ```
-
+then, you can test the project by:
+```
+make test
+```
+and tests pass, you can install by:
+```
+make install
+```
 
 ## Building ARPACK ##
 
@@ -88,7 +93,6 @@ Depending on your environment, additional adjustments can be performed. Please c
 
 **NOTE:** These instructions are adopted from the standard SPOOLES installation guide.
 
-
 Before you can compile anything, you must first edit and correct the file `Make.inc` and `timings.h`. We recommend at least following changes:
 
 * uncomment and set `CC` to the full path of your `mpicc` compiler
@@ -97,7 +101,7 @@ Before you can compile anything, you must first edit and correct the file `Make.
 * set `MPI_INSTALL_DIR` to the fullpath location of your MPI library (for Ubuntu users with OpenMPI it will be `/usr/lib/x86_64-linux-gnu/openmpi/`)
 * set `MPI_LIB_PATH` to empty `MPI_LIB_PATH =`
 * set `MPI_LIBS` to `MPI_LIBS = $(MPI_LIB_PATH) -lpthread`
- 
+
 Change `timings.h` to:
 ```
 #ifndef _TIMINGS_
@@ -106,8 +110,8 @@ Change `timings.h` to:
 static struct timeval  TV ;
 //static struct timezone TZ ;
 #define MARKTIME(t) \
-   gettimeofday(&TV, NULL) ; \
-   t = (TV.tv_sec + 0.000001*TV.tv_usec)
+gettimeofday(&TV, NULL) ; \
+t = (TV.tv_sec + 0.000001*TV.tv_usec)
 #endif
 ```
 Once changes are applied make the library by running
@@ -119,12 +123,9 @@ Note, this option requires the Perl language installed on the system. Note that 
 $ cd MT/src
 $ make -f makeGlobalLib
 ```
-
 for MPU version, in the base SPOOLES folder run:
-
 ```
 $ cd MPI/src
 $ make -f makeGlobalLib
 ```
-
 Depending on your environment, additional adjustments can be performed. Please consult SPOOLES documentation (available [here](http://www.netlib.org/linalg/spooles/Install.ps.gz)) for details.

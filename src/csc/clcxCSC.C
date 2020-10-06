@@ -291,8 +291,9 @@ void clcx_module::register_volume_data() {
     message("Number of nodes " + std::to_string(_ci->nk));
     COM_set_size(_wname_vol + ".nc", _rank + 1, _ci->nk);
     COM_set_array(_wname_vol + ".nc", _rank + 1, _ci->co, 3);
-  } else
-    COM_set_size(_wname_vol + ".nc", _rank + 1, 0);
+  }
+  //} else
+  //  COM_set_size(_wname_vol + ".nc", _rank + 1, 0);
 
   // connectivity
 
@@ -365,9 +366,11 @@ void clcx_module::register_surface_data() {
   // surface data registration
   COM_new_window(_wname_srf, MPI_COMM_NULL);
 
-  // nodal coordinates
-  COM_set_size(_wname_srf + ".nc", _rank + 1, _nFsiNde);
-  COM_set_array(_wname_srf + ".nc", _rank + 1, &_fsiNdeCrd[0], 3);
+  if (_nFsiNde > 0) {
+    // nodal coordinates
+    COM_set_size(_wname_srf + ".nc", _rank + 1, _nFsiNde);
+    COM_set_array(_wname_srf + ".nc", _rank + 1, &_fsiNdeCrd[0], 3);
+  }
 
   // connectivity
 
@@ -415,63 +418,72 @@ void clcx_module::register_surface_data() {
   // output variables
   // registering displacements (u)_{SN}^{n+1}
   COM_new_dataitem(_wname_srf + ".u", 'n', COM_DOUBLE, 3, "");
-  // COM_set_size(_wname_srf + ".u", 1, _nFsiNde, 3);
-  COM_set_array(_wname_srf + ".u", _rank + 1, &_fsiU[0], 3);
-
-  // registering displacements (u_{hat})_{SN}^{n+1}
-  // According to Rocman Design, it is not completely clear
-  // what is the difference between u and u_{hat}. It seems
-  // u_hat is reserved for some sort of particle which we are
-  // not supporting yet
   COM_new_dataitem(_wname_srf + ".uhat", 'n', COM_DOUBLE, 3, "");
-  // COM_set_size(_wname_srf + ".uhat", 1, _nFsiNde);
-  COM_set_array(_wname_srf + ".uhat", _rank + 1, &_fsiUHat[0], 3);
-
-  // registering velocity (v_{s})_{SN}^{n+1}
   COM_new_dataitem(_wname_srf + ".vs", 'n', COM_DOUBLE, 3, "");
-  // COM_set_size(_wname_srf + ".vs", 1, _nFsiNde);
-  COM_set_array(_wname_srf + ".vs", _rank + 1, &_fsiV[0], 3);
-
-  // registering specific heat (C_s)_{SF}^{n+1}
   COM_new_dataitem(_wname_srf + ".Cs", 'e', COM_DOUBLE, 1, "");
-  // COM_set_size(_wname_srf + ".Cs", 1, _nFsiTri);
-  COM_set_array(_wname_srf + ".Cs", _rank + 1, &_fsiCs[0], 1);
-
-  // registering temperature (T_s)_{SN}^{n+1}
   COM_new_dataitem(_wname_srf + ".Ts", 'n', COM_DOUBLE, 1, "");
-  // COM_set_size(_wname_srf + ".Ts", 1, _nFsiNde);
-  COM_set_array(_wname_srf + ".Ts", _rank + 1, &_fsiTs[0], 1);
-
-  // registering density (rho_s)_{SF}^{n+1}
   COM_new_dataitem(_wname_srf + ".rhos", 'e', COM_DOUBLE, 1, "");
-  // COM_set_size(_wname_srf + ".rhos", 1, _nFsiTri);
-  COM_set_array(_wname_srf + ".rhos", _rank + 1, &_fsiRhos[0], 1);
-
-  // registering bcflag
   COM_new_dataitem(_wname_srf + ".bcflag", 'p', COM_INT, 1, "");
-  COM_set_size(_wname_srf + ".bcflag", _rank + 1, 1);
-  COM_set_array(_wname_srf + ".bcflag", _rank + 1, &_fsibcflag, 1);
+  if (_nFsiNde > 0) {
+    // COM_set_size(_wname_srf + ".u", 1, _nFsiNde, 3);
+    COM_set_array(_wname_srf + ".u", _rank + 1, &_fsiU[0], 3);
+
+    // registering displacements (u_{hat})_{SN}^{n+1}
+    // According to Rocman Design, it is not completely clear
+    // what is the difference between u and u_{hat}. It seems
+    // u_hat is reserved for some sort of particle which we are
+    // not supporting yet
+    // COM_set_size(_wname_srf + ".uhat", 1, _nFsiNde);
+    COM_set_array(_wname_srf + ".uhat", _rank + 1, &_fsiUHat[0], 3);
+
+    // registering velocity (v_{s})_{SN}^{n+1}
+    // COM_set_size(_wname_srf + ".vs", 1, _nFsiNde);
+    COM_set_array(_wname_srf + ".vs", _rank + 1, &_fsiV[0], 3);
+
+    // registering temperature (T_s)_{SN}^{n+1}
+    // COM_set_size(_wname_srf + ".Ts", 1, _nFsiNde);
+    COM_set_array(_wname_srf + ".Ts", _rank + 1, &_fsiTs[0], 1);
+  }
+
+  if (_nFsiFct > 0) {
+    // registering specific heat (C_s)_{SF}^{n+1}
+    // COM_set_size(_wname_srf + ".Cs", 1, _nFsiTri);
+    COM_set_array(_wname_srf + ".Cs", _rank + 1, &_fsiCs[0], 1);
+
+    // registering density (rho_s)_{SF}^{n+1}
+    // COM_set_size(_wname_srf + ".rhos", 1, _nFsiTri);
+    COM_set_array(_wname_srf + ".rhos", _rank + 1, &_fsiRhos[0], 1);
+
+    // registering bcflag
+    COM_set_size(_wname_srf + ".bcflag", _rank + 1, 1);
+    COM_set_array(_wname_srf + ".bcflag", _rank + 1, &_fsibcflag, 1);
+  }
 
   //// input variables
+  COM_new_dataitem(_wname_srf + ".vbar_alp", 'n', COM_DOUBLE, 3, "");
+  COM_new_dataitem(_wname_srf + ".ts_alp", 'e', COM_DOUBLE, 3, "");
+  COM_new_dataitem(_wname_srf + ".qs_alp", 'e', COM_DOUBLE, 1, "");
 
   // registering tractions (t_s)_{SN}^{n+alpha}
   // seems like tractions are passed for nodes according to the manual
   // rather than face centers this may need to be double checked
-  COM_new_dataitem(_wname_srf + ".ts_alp", 'e', COM_DOUBLE, 3, "");
-  // COM_set_size(_wname_srf + ".ts_alp", 1, _nFsiTri);
-  COM_set_array(_wname_srf + ".ts_alp", _rank + 1, &_fsiTs_alp[0], 3);
 
-  // registering mesh velocity (vbar_alp)_{SN}^{n+alpha}
-  COM_new_dataitem(_wname_srf + ".vbar_alp", 'n', COM_DOUBLE, 3, "");
-  // COM_set_size(_wname_srf + ".vbar_alp", 1, _nFsiTri);
-  COM_set_array(_wname_srf + ".vbar_alp", _rank + 1, &_fsiVbar_alp[0], 3);
+  if (_nFsiNde > 0) {
+    // registering mesh velocity (vbar_alp)_{SN}^{n+alpha}
+    // COM_set_size(_wname_srf + ".vbar_alp", 1, _nFsiTri);
+    COM_set_array(_wname_srf + ".vbar_alp", _rank + 1, &_fsiVbar_alp[0], 3);
+  }
 
-  // registering heat flux (q_s)_{SF}^{n}
-  // annother inconsistency in the Rocman Design, the variable is called
-  // qs_alpha but symbol show ^{n} instead of ^{n+alpha}
-  COM_new_dataitem(_wname_srf + ".qs_alp", 'e', COM_DOUBLE, 1, "");
-  // COM_set_size(_wname_srf + ".qs_alp", 1, _nFsiTri);
-  COM_set_array(_wname_srf + ".qs_alp", _rank + 1, &_fsiQs_alp[0], 1);
+  if (_nFsiFct > 0) {
+    // COM_set_size(_wname_srf + ".ts_alp", 1, _nFsiTri);
+    COM_set_array(_wname_srf + ".ts_alp", _rank + 1, &_fsiTs_alp[0], 3);
+
+    // registering heat flux (q_s)_{SF}^{n}
+    // annother inconsistency in the Rocman Design, the variable is called
+    // qs_alpha but symbol show ^{n} instead of ^{n+alpha}
+    // COM_set_size(_wname_srf + ".qs_alp", 1, _nFsiTri);
+    COM_set_array(_wname_srf + ".qs_alp", _rank + 1, &_fsiQs_alp[0], 1);
+  }
 
   COM_window_init_done(_wname_srf);
 }
@@ -1077,7 +1089,7 @@ void clcx_module::fsi_sync_loads() {
   }
 
   // NOTE: this is just for testing comment out in production
-  //for (auto &val : _fsiTs_alp)
+  // for (auto &val : _fsiTs_alp)
   // val = 1.0;
 
   // computing surface normals and applying pressure loads
