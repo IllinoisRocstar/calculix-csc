@@ -86,14 +86,17 @@ int main(int argc, char *argv[]) {
       COM_LOAD_MODULE_STATIC_DYNAMIC(SimOUT, "OUT");
       int OUT_set = COM_get_function_handle("OUT.set_option");
       int OUT_write = COM_get_function_handle("OUT.write_dataitem");
+      int OUT_write_control = COM_get_function_handle("OUT.write_rocin_control_file");
       int IN_all = COM_get_dataitem_handle("clcx_vol.all");
       // std::cout << "IN_all handle = " << IN_all << std::endl;
       char time_level[33] = "0";
       COM_call_function(OUT_write, "./test_vol_", &IN_all, "clcx", time_level);
+      COM_call_function(OUT_write_control, "clcx_vol", "./test_vol_", "./solid_in_00.000000.txt");
       std::cout << "Finished writting volume window" << std::endl;
       IN_all = COM_get_dataitem_handle("clcx_srf.all");
       // std::cout << "IN_all handle = " << IN_all << std::endl;
       COM_call_function(OUT_write, "./test_srf_", &IN_all, "clcx", time_level);
+      COM_call_function(OUT_write_control, "clcx_srf", "./test_srt_", "./isolid_in_00.000000.txt");
       std::cout << "Finished writting surface window" << std::endl;
       COM_UNLOAD_MODULE_STATIC_DYNAMIC(SimOUT, "OUT");
       std::cout << "Unloaded SIMOUT" << std::endl;
