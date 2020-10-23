@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
       IN_all = COM_get_dataitem_handle("clcx_srf.all");
       // std::cout << "IN_all handle = " << IN_all << std::endl;
       COM_call_function(OUT_write, "./test_srf_", &IN_all, "clcx", time_level);
-      COM_call_function(OUT_write_control, "clcx_srf", "./test_srt_", "./isolid_in_00.000000.txt");
+      COM_call_function(OUT_write_control, "clcx_srf", "./test_srf_", "./isolid_in_00.000000.txt");
       std::cout << "Finished writting surface window" << std::endl;
       COM_UNLOAD_MODULE_STATIC_DYNAMIC(SimOUT, "OUT");
       std::cout << "Unloaded SIMOUT" << std::endl;
