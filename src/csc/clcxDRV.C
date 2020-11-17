@@ -20,9 +20,11 @@ std::string _prep_task = "rocstar";
 double _final_time = 0.;
 double _step_time = 0.;
 bool _rstrt = false;
+bool _step_dt = false;
+double _step_dt_val = 0.;
 std::string _srf_fn = "";
 std::string _vol_fn = "";
-#ifdef HAVE_CFD      
+#ifdef HAVE_CFD
 bool _cfd_data = false;
 std::string _cfd_data_fn = "";
 #endif
@@ -63,7 +65,7 @@ int main(int argc, char *argv[]) {
 
     // set CFD dataset if requested
     // it is assumed CFD data are steady state and converged
-#ifdef HAVE_CFD      
+#ifdef HAVE_CFD
     // setting CFD data file name if needed
     if (_cfd_data) {
       // handle to driver friendly initialize method
@@ -86,17 +88,20 @@ int main(int argc, char *argv[]) {
       COM_LOAD_MODULE_STATIC_DYNAMIC(SimOUT, "OUT");
       int OUT_set = COM_get_function_handle("OUT.set_option");
       int OUT_write = COM_get_function_handle("OUT.write_dataitem");
-      int OUT_write_control = COM_get_function_handle("OUT.write_rocin_control_file");
+      int OUT_write_control =
+          COM_get_function_handle("OUT.write_rocin_control_file");
       int IN_all = COM_get_dataitem_handle("clcx_vol.all");
       // std::cout << "IN_all handle = " << IN_all << std::endl;
       char time_level[33] = "0";
       COM_call_function(OUT_write, "./test_vol_", &IN_all, "clcx", time_level);
-      COM_call_function(OUT_write_control, "clcx_vol", "./test_vol_", "./solid_in_00.000000.txt");
+      COM_call_function(OUT_write_control, "clcx_vol", "./test_vol_",
+                        "./solid_in_00.000000.txt");
       std::cout << "Finished writting volume window" << std::endl;
       IN_all = COM_get_dataitem_handle("clcx_srf.all");
       // std::cout << "IN_all handle = " << IN_all << std::endl;
       COM_call_function(OUT_write, "./test_srf_", &IN_all, "clcx", time_level);
-      COM_call_function(OUT_write_control, "clcx_srf", "./test_srf_", "./isolid_in_00.000000.txt");
+      COM_call_function(OUT_write_control, "clcx_srf", "./test_srf_",
+                        "./isolid_in_00.000000.txt");
       std::cout << "Finished writting surface window" << std::endl;
       COM_UNLOAD_MODULE_STATIC_DYNAMIC(SimOUT, "OUT");
       std::cout << "Unloaded SIMOUT" << std::endl;
@@ -127,8 +132,11 @@ int main(int argc, char *argv[]) {
     MPI_Comm comm = MPI_COMM_WORLD;
     int initHndl = -1;
     int obtHndl = -1;
+    std::cout << "Rank " << _wrank << " Initializing" << std::endl;
     COM_call_function(_hndl, &initT, &comm, &initHndl, srfWinName.c_str(),
                       volWinName.c_str(), &obtHndl);
+    std::cout << "Rank " << _wrank << " Finished Initializing" << std::endl;
+    MPI_Barrier(comm);
 
     if (_step) {
       // update_solution
@@ -137,7 +145,32 @@ int main(int argc, char *argv[]) {
         exitme("Error obtaining run handle.\n");
       double currTime = 0.0;
       int updHndl = -1;
-      COM_call_function(_hndl, &currTime, &_step_time, &updHndl);
+
+      if (!_step_dt) {
+        std::cout << "Rank " << _wrank << " stepping in time" << std::endl;
+        COM_call_function(_hndl, &currTime, &_step_time, &updHndl);
+        std::cout << "Rank " << _wrank << " finished the step " << std::endl;
+        MPI_Barrier(comm);
+      } else {
+        COM_LOAD_MODULE_STATIC_DYNAMIC(SimOUT, "OUT");
+        int OUT_set = COM_get_function_handle("OUT.set_option");
+        int OUT_write = COM_get_function_handle("OUT.write_dataitem");
+        int IN_all = COM_get_dataitem_handle("clcx_srf.all");
+        char time_level[33] = "0";
+        for (; currTime < _step_time; currTime += _step_dt_val) {
+          std::cout << "Rank " << _wrank << " stepping in time" << std::endl;
+          COM_call_function(_hndl, &currTime, &_step_dt_val, &updHndl);
+          std::cout << "Rank " << _wrank << " finished the step " << std::endl;
+          MPI_Barrier(comm);
+          std::string time_level_str = std::to_string(currTime);
+          for (int iS = 0; iS < time_level_str.length(); iS++)
+            time_level[iS] = time_level_str[iS];
+          time_level_str = "./scratch_srf_" + time_level_str;
+          COM_call_function(OUT_write, time_level_str.c_str(), &IN_all, "clcx",
+                            time_level);
+        }
+        COM_UNLOAD_MODULE_STATIC_DYNAMIC(SimOUT, "OUT");
+      }
     }
 
     COM_UNLOAD_MODULE_STATIC_DYNAMIC(SimIN, "IN");
@@ -189,7 +222,7 @@ int main(int argc, char *argv[]) {
 
   // peaceful exit
   MPI_Barrier(MPI_COMM_WORLD);
-  //std::cout << "Process " << _wrank << " passed the barrier." << std::endl;
+  // std::cout << "Process " << _wrank << " passed the barrier." << std::endl;
   MPI_Finalize();
   return 0;
 }
@@ -210,24 +243,24 @@ void usage(char *argv[]) {
         << "\tverbose output\n"
         << "\t-e\n"
         << "\texodus output\n"
-        << "\t-i\n"
+        << "\t-i input_name\n"
         << "\tinput file name without .inp [input_name]\n"
-        << "\t-p\n"
+        << "\t-p task\n"
         << "\tpreprocess the task [task]\n"
         << "\ttask can be \"rocstar\" for generating Rocstar input "
            "data\n"
         << "\ttask can be \"fsi\" for the addition of Surface keyword to input "
            "deck\n"
-        << "\t-s\n"
+        << "\t-s target_time [-f final_time] [-ts delta_t]\n"
         << "\tstarts and steps for a given amount of time passed "
            "[target_time]\n"
-        << "\t-f\n"
-        << "\tproceed to the final simulation time passed [final_time]\n"
-        << "\tthis switch only works when -s is used\n"
-        << "\t-r\n"
+        << "\tif [-f final_time] is set will proceed to the final simulation\n"
+        << "\ttime passed [final_time]\n"
+        << "\tif [-ts delta_t] is set, delta_t will be used for time steppping.\n"
+        << "\t-r \n"
         << "\tsurface file name [surf_file] and volume file name [vol_file]\n"
         << "\trestarts the from snapshot files and continues the simulation\n"
-#ifdef HAVE_CFD      
+#ifdef HAVE_CFD
         << "\t-cfd-data\n"
         << "\tuse cfd-data passed in file name [cfd_file]\n"
 #endif
@@ -269,7 +302,11 @@ void procArgs(int argc, char *argv[]) {
         _srf_fn = std::string(argv[iArg + 1]);
         _vol_fn = std::string(argv[iArg + 2]);
       }
-#ifdef HAVE_CFD      
+      if (args.compare("-ts") == 0) {
+        _step_dt = true;
+        _step_dt_val = std::stod(argv[iArg + 1]);
+      }
+#ifdef HAVE_CFD
       if (args.compare("-cfd-data") == 0) {
         _cfd_data = true;
         _cfd_data_fn = std::string(argv[iArg + 1]);
