@@ -21,7 +21,7 @@ void clcx_module_upd_bc_wrapper(void *context, double dt) {
 clcx_module::clcx_module()
     : _vrb(0), _rank(0), _nproc(1), _cfd_data(false), _nFsiNde(0), _nFsiTri(0),
       _nFsiQuad(0), _nFsiFct(0), _totElmNum(0), _lowTetElmNum(0),
-      _lowHexElmNum(0), _updHndl(nullptr), _centri(false) {
+      _lowHexElmNum(0), _updHndl(nullptr) {
   _ci = std::make_shared<clcx_interface>();
   _ci->register_update_bc(&clcx_module_upd_bc_wrapper, this);
 }
@@ -222,10 +222,6 @@ void clcx_module::preprocess(std::string actStr) {
 
     // preparation operations
     scan_actions();
-    if (centrifugal_check()) {
-      message("Centrifugal case detected.");
-      centrifugal_set_data();
-    }
   }
 
   if (actStr.find("rocstar") != std::string::npos) {
@@ -237,10 +233,6 @@ void clcx_module::preprocess(std::string actStr) {
       else
         // setting FSI loads to zero
         fsi_sync_loads();
-
-      // update velocities in case of centrifugal loading
-      // if (centrifugal_check())
-      //  centrifugal_update_quantities_pp();
     }
 
     // register global data
@@ -305,7 +297,7 @@ void clcx_module::register_volume_data() {
 
   // connectivity
 
-  // supporting tets and hexes only (not mixed)
+  // supporting tets for now
   if (main_process()) {
     if (_elmTypIdx.find("C3D4") == _elmTypIdx.end() &&
         _elmTypIdx.find("C3D8") == _elmTypIdx.end()) {
@@ -325,6 +317,7 @@ void clcx_module::register_volume_data() {
     nTet = _elmTypIdx["C3D4"].size();
     nHex = _elmTypIdx["C3D8"].size();
   }
+
   if (nTet > 0) {
     COM_set_size(_wname_vol + ".:T4", _rank + 1, nTet);
     COM_set_array(_wname_vol + ".:T4", _rank + 1, &_tetConn[0], 4);
@@ -339,12 +332,30 @@ void clcx_module::register_volume_data() {
   if (main_process()) {
     COM_set_array(_wname_vol + ".u", _rank + 1, _ci->vold, 3);
   }
+  // bound values for debugging
+  double lb = 0.;
+  double ub = 0.;
+  for (size_t idx = 0; idx < (_ci->nk); idx++) {
+    ub = std::max(ub, _ci->vold[idx]);
+    lb = std::min(lb, _ci->vold[idx]);
+  }
+  message("Min vol.u value is " + std::to_string(lb));
+  message("Max vol.u value is " + std::to_string(ub));
 
   // registering velocity (v_{s})_{SN}^{n+1}
   COM_new_dataitem(_wname_vol + ".vs", 'n', COM_DOUBLE, 3, "");
   if (main_process()) {
     COM_set_array(_wname_vol + ".vs", _rank + 1, _ci->veold, 3);
   }
+  // bound values for debugging
+  ub = 0.;
+  lb = 0.;
+  for (size_t idx = 0; idx < (_ci->nk); idx++) {
+    ub = std::max(ub, _ci->veold[idx]);
+    lb = std::min(lb, _ci->veold[idx]);
+  }
+  message("Min vol.vs value is " + std::to_string(lb));
+  message("Max vol.vs value is " + std::to_string(ub));
 
   COM_window_init_done(_wname_vol);
 }
@@ -797,10 +808,6 @@ void clcx_module::initialize(double &initTime, MPI_Comm &inComm,
     // preparation operations
     scan_actions();
     fsi_compute_norms();
-    if (centrifugal_check()) {
-      message("Centrifugal case detected.");
-      centrifugal_set_data();
-    }
   }
 
   // register volume data
@@ -850,7 +857,7 @@ void clcx_module::update_solution(double &currTime, double &timeStep,
     else
       clcx_tper_min = (_ci->timepar[2]) * clcx_tper;
 
-    // debugging
+    // testing
     // message(std::to_string(_ci->timepar[0]));
     // message(std::to_string(_ci->timepar[1]));
     // message(std::to_string(_ci->timepar[2]));
@@ -1153,9 +1160,6 @@ void clcx_module::fsi_sync_other_quantities() {
       _fsiU.push_back(_ci->vold[(ndeIdx - 1) * mt + iCmp + 1]);
       _fsiV.push_back(_ci->veold[(ndeIdx - 1) * mt + iCmp + 1]);
     }
-
-  if (_centri)
-    centrifugal_update_quantities();
 
   // DBG
   // double min_ci, max_ci;
@@ -1465,131 +1469,5 @@ void clcx_module::fsi_compute_face_centers() {
     _fsiTriCenCrd.push_back(1. / 3. * (p0[0] + p1[0] + p2[0]));
     _fsiTriCenCrd.push_back(1. / 3. * (p0[1] + p1[1] + p2[1]));
     _fsiTriCenCrd.push_back(1. / 3. * (p0[2] + p1[2] + p2[2]));
-  }
-}
-
-bool clcx_module::centrifugal_check() {
-  // check if case is uses centrifugal acceleration
-  // in such a case, for convenience, we update the displacements reported
-  // to rocstar with rotation.
-  // Note: this is not an optimal solution to the problem, but rather a
-  // quick patch. Application is discouraged for non-rocstar purposes.
-
-  // DBG
-  // message("Number of body forces " + std::to_string(_ci->nbody));
-  _centri = false;
-  _centriBdIdx = -1;
-  if (_ci->nbody <= 0)
-    return _centri;
-
-  int nCntri = 0;
-  for (int iBd = 0; iBd < _ci->nbody; iBd++)
-    if (_ci->ibody[3 * iBd] == 1) {
-      _centriBdIdx = iBd;
-      nCntri++;
-    }
-
-  if (nCntri > 1) {
-    message("More than one centrifugal loading is not supported.");
-    throw;
-  }
-
-  _centri = true;
-  return _centri;
-}
-
-void clcx_module::centrifugal_set_data() {
-  if (!_centri) {
-    message("Body force index does not exist.");
-    throw;
-  }
-
-  // offestinf to c-style indexing
-  int bdIdx = _centriBdIdx * 7;
-
-  // DBG
-  // message("Centrifugal data : " + std::to_string(_ci->xbody[bdIdx]) + " " +
-  //        std::to_string(_ci->xbody[bdIdx + 1]) + " " +
-  //        std::to_string(_ci->xbody[bdIdx + 2]) + " " +
-  //        std::to_string(_ci->xbody[bdIdx + 3]) + " " +
-  //        std::to_string(_ci->xbody[bdIdx + 4]) + " " +
-  //        std::to_string(_ci->xbody[bdIdx + 5]) + " " +
-  //        std::to_string(_ci->xbody[bdIdx + 6]));
-
-  // rotational speed
-  _centriOmega = pow(_ci->xbody[bdIdx], 0.5);
-
-  // normalized rotation axis
-  _centriN.clear();
-  _centriN.push_back(_ci->xbody[bdIdx + 4]);
-  _centriN.push_back(_ci->xbody[bdIdx + 5]);
-  _centriN.push_back(_ci->xbody[bdIdx + 6]);
-}
-
-void clcx_module::centrifugal_update_quantities_pp() {
-  // only updating displacements for now. Seems like that is
-  // enough for the Rocstar purposes.
-
-  for (size_t iNde = 0; iNde < (_ci->nk); iNde++) {
-    // message("Coordinate -> " + std::to_string(_ci->co[iNde * 3]) + " " +
-    //        std::to_string(_ci->co[iNde * 3 + 1]) + " " +
-    //        std::to_string(_ci->co[iNde * 3 + 2]));
-
-    std::vector<double> p;
-    p.push_back(_ci->co[iNde * 3]);
-    p.push_back(_ci->co[iNde * 3 + 1]);
-    p.push_back(_ci->co[iNde * 3 + 2]);
-
-    std::vector<double> n(_centriN);
-    std::vector<double> v;
-    v.push_back((n[1] * p[2] - n[2] * p[1]) * _centriOmega);
-    v.push_back((n[2] * p[0] - n[0] * p[2]) * _centriOmega);
-    v.push_back((n[0] * p[1] - n[1] * p[0]) * _centriOmega);
-
-    (_ci->veold[iNde * 3]) += v[0];
-    (_ci->veold[iNde * 3 + 1]) += v[1];
-    (_ci->veold[iNde * 3 + 2]) += v[2];
-  }
-}
-
-void clcx_module::centrifugal_update_quantities() {
-  // only updating displacements for now. Seems like that is
-  // enough for the Rocstar purposes.
-
-  // at time zero set rotational displacement to zero
-  if (_upd_start_time == 0)
-    _centriDisp.resize(3*_fsiNdeIdx.size(), 0.);
-
-  message("Compensating for rotation.");
-  std::vector<double> n(_centriN);
-  size_t idx = 0;
-  for (auto &ndeIdx : _fsiNdeIdx) {
-    std::vector<double> p;
-    p.push_back((_ci->co[(ndeIdx - 1) * 3]) + _centriDisp[idx]);
-    p.push_back((_ci->co[(ndeIdx - 1) * 3 + 1]) + _centriDisp[idx + 1]);
-    p.push_back((_ci->co[(ndeIdx - 1) * 3 + 2]) + _centriDisp[idx + 2]);
-
-    std::vector<double> dp;
-    dp.push_back((n[1] * p[2] - n[2] * p[1]) * _centriOmega * _upd_time_step);
-    dp.push_back((n[2] * p[0] - n[0] * p[2]) * _centriOmega * _upd_time_step);
-    dp.push_back((n[0] * p[1] - n[1] * p[0]) * _centriOmega * _upd_time_step);
-
-    _centriDisp[idx] += dp[0];
-    _centriDisp[idx + 1] += dp[1];
-    _centriDisp[idx + 2] += dp[2];
-
-    _fsiU[idx] += dp[0];
-    _fsiU[idx + 1] += dp[1];
-    _fsiU[idx + 2] += dp[2];
-
-    // DBG
-    //_fsiU[idx] = dp[0];
-    //_fsiU[idx + 1] = dp[1];
-    //_fsiU[idx + 2] = dp[2];
-    //message("Node " + std::to_string(ndeIdx) + " is being updated with " +
-    //        std::to_string(dp[0]) + " " + std::to_string(dp[1]) + " " +
-    //        std::to_string(dp[2]));
-
-    idx += 3;
   }
 }

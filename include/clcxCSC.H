@@ -135,10 +135,6 @@ private:
   void fsi_sync_loads_from_file();
   void debug_print(const std::string &str, int pane, int pe, MPI_Comm comm,
                    const char *memo);
-  bool centrifugal_check();
-  void centrifugal_set_data();
-  void centrifugal_update_quantities_pp();
-  void centrifugal_update_quantities();
 
 public:
   // for external access to the update handler
@@ -196,11 +192,6 @@ private:
   int *_updHndl;
   double _upd_start_time;
   double _upd_time_step;
-  bool _centri;
-  int _centriBdIdx;
-  std::vector<double> _centriN;
-  std::vector<double> _centriDisp;
-  double _centriOmega;
 };
 
 #endif // CLCXCSC_H
