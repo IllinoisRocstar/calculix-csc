@@ -7,7 +7,7 @@ This is the vanilla CalculiX project (forked from v2.15) with a few improvments 
 * ExodusII output and GPU solver support (GPU is not completely tested, using patches released by Peter A. Gustafson on 8/14/2019).
 
 ## Version
-Version 2.15.3
+Version 2.15.2
 
 The project follows the versioning convention of the original CalculiX. The versioning will be major.minor.patch and increments are as following:
 * major: shows major version of the CalculiX project 
