@@ -14,6 +14,35 @@
 /*     You should have received a copy of the GNU General Public License */
 /*     along with this program; if not, write to the Free Software       */
 /*     Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.         */
+/*
+  Divide hexahedra into 5 tets and computes the total volume
+
+     2-------------------6
+    -|                  -|
+   - |                 - |
+  3-------------------7  |
+  |  |                |  |
+  |  |                |  |
+  |  1----------------|--5
+  | -                 | -
+  |-                  |-
+  0-------------------4
+
+  This can be divided in 5 tets
+
+  A: 0,1,3,4
+  B: 1,2,3,6
+  C: 1,4,5,6
+  D: 3,4,6,7
+  E: 1,3,4,6
+
+  Volume of a tet cell (made of vertices 0,1,3,4) is given by
+  
+      |x0  y0  z0  1 | 
+  1   |x1  y1  z1  1 |
+  - * |x3  y3  z3  1 |
+  6   |x4  y4  z4  1 |
+*/
 
 #include <unistd.h>
 #include <stdio.h>
