@@ -6,6 +6,7 @@ Build.dat
 *.swo
 lnInclude/
 *_export.h
+Install
 
 # Prerequisites
 *.d
