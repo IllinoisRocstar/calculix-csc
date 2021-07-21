@@ -44,9 +44,8 @@ centos7-test:
       -DENABLE_CFD_SUPPORT=ON
       -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx
       -DMPIEXEC_EXECUTABLE=/usr/lib64/openmpi/bin/mpiexec
-      -DBoost_INCLUDE_DIR=/usr/include/boost169
-      -DBoost_IOSTREAMS_LIBRARY_RELEASE=/usr/lib64/boost169/libboost_iostreams.so
-      -DBoost_SERIALIZATION_LIBRARY_RELEASE=/usr/lib64/boost169/libboost_serialization.so
+      -DBOOST_INCLUDEDIR=/usr/include/boost169
+      -DBOOST_LIBRARYDIR=/usr/lib64/boost169
     - make -j$(nproc)
     - make install
     - ctest3 --output-on-failure
