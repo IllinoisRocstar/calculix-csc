@@ -45,6 +45,8 @@ centos7-test:
       -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx
       -DMPIEXEC_EXECUTABLE=/usr/lib64/openmpi/bin/mpiexec
       -DBoost_INCLUDE_DIR=/usr/include/boost169
+      -DBoost_IOSTREAMS_LIBRARY_RELEASE=/usr/lib64/boost169/libboost_iostreams.so
+      -DBoost_SERIALIZATION_LIBRARY_RELEASE=/usr/lib64/boost169/libboost_serialization.so
     - make -j$(nproc)
     - make install
     - ctest3 --output-on-failure
