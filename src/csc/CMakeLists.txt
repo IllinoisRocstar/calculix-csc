@@ -36,9 +36,7 @@ target_include_directories(clcxcsc
 
 target_include_directories(clcxcsc
     SYSTEM PUBLIC
-    ${SPOOLES_PATH}
-    ${SPOOLES_PATH}/MT
-    ${SPOOLES_PATH}/MPI)
+    ${SPOOLES_INC_PATH})
 
 install(TARGETS clcxcsc
     EXPORT clcxcsc

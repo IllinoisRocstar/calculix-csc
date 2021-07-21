@@ -1075,9 +1075,7 @@ target_include_directories(clcx
 
 target_include_directories(clcx
     SYSTEM PUBLIC
-    ${SPOOLES_PATH}
-    ${SPOOLES_PATH}/MT
-    ${SPOOLES_PATH}/MPI)
+    ${SPOOLES_INC_PATH})
 
 install(TARGETS clcx
     EXPORT clcx
