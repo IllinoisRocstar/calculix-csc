@@ -134,12 +134,13 @@ endif()
 ################
 # setting files
 ################
+include(GNUInstallDirs)
 # install header files
 file(GLOB H_FILES include/*.H)
 file(GLOB h_FILES include/*.h)
 file(GLOB hpp_FILES include/*.hpp)
 set(CLCX_INC_FILES ${H_FILES} ${h_FILES} ${hpp_FILES})
-install(FILES ${CLCX_INC_FILES} DESTINATION ${CMAKE_INSTALL_PREFIX}/include)
+install(FILES ${CLCX_INC_FILES} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/clcx)
 
 add_subdirectory(src)
 
