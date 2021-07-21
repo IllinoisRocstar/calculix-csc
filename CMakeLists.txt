@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.9)
 
 #########################
 # project global settings
@@ -46,19 +46,15 @@ if(NOT CMAKE_BUILD_TYPE)
       CACHE STRING "Build type (Release, Debug, RelWithDebugInfo, MinSizeRel)")
 endif()
 
-macro(opt OPTION HELP VALUE)
-  option(ENABLE_${OPTION} ${HELP} ${VALUE})
-  set(OPT_TEXI "${OPT_TEXI}\n@item ENABLE_${OPTION}\n${HELP} (default: ${VALUE})")
-endmacro(opt)
-
 # package module
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake/)
 
 # set options
-opt(TESTING "Enable testing" ON)
-opt(PAR "Builds parallel Epic solver" ON)
-opt(CSC "Builds solver driver and csc modules" ON)
-opt(CFD_SUPPORT "Enables usage of offline CFD data" OFF)
+option(ENABLE_TESTING "Enable testing" ON)
+option(ENABLE_PAR "Builds parallel Epic solver" ON)
+option(ENABLE_CSC "Builds solver driver and csc modules" ON)
+option(ENABLE_CFD_SUPPORT "Enables usage of offline CFD data" OFF)
+option(BUILD_SHARED_LIBS "Build shared libraries (and not static ones)" ON)
 
 # default definitions
 add_definitions("-DUSE_MT")
@@ -94,8 +90,9 @@ if(ENABLE_PAR)
   add_definitions("-DCALCULIX_MPI")
 endif(ENABLE_PAR)
 
-find_package(LAPACK REQUIRED)
-find_package(BLAS REQUIRED)
+# According to old_install_manifest, LAPACK and BLAS are only needed as transitive dependencies of TAUCS
+# find_package(LAPACK REQUIRED)
+# find_package(BLAS REQUIRED)
 find_package(Threads REQUIRED)
 find_package(Exodus REQUIRED)
 find_package(NetCDF REQUIRED)

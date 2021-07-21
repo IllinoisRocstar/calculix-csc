@@ -14,8 +14,8 @@ target_link_libraries(clcxcsc
   PUBLIC
   clcx
   ${MPI_LIBRARIES}
-  ${LAPACK_LIBRARIES}
-  ${BLAS_LIBRARIES}
+  # ${LAPACK_LIBRARIES}
+  # ${BLAS_LIBRARIES}
   ${SPOOLES_LIB}
   ${ARPACK_LIB}
   ${FLANN_LIB}
