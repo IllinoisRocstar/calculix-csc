@@ -81,7 +81,7 @@ build-latest-centos7:
       curl --insecure --header "PRIVATE-TOKEN: $IMPACT_TOKEN"
       $CI_API_V4_URL/projects/$IMPACT_PROJECT_ID/pipelines/$IMPACT_PIPELINE_ID/jobs
       > impact_jobs.json
-    - export IMPACT_centos7_JOB_ID=$(cat impact_jobs.json | python3 -c "import json, sys; print([entry for entry in json.load(sys.stdin) if entry['name'] == 'test:centos7'][0]['id'])"
+    - export IMPACT_centos7_JOB_ID=$(cat impact_jobs.json | python3 -c "import json, sys; print([entry for entry in json.load(sys.stdin) if entry['name'] == 'test:centos7'][0]['id'])")
     - echo $IMPACT_centos7_JOB_ID
     - mkdir upstream_rpms
     - >
@@ -128,7 +128,7 @@ build-latest-ubuntu18:
       curl --insecure --header "PRIVATE-TOKEN: $IMPACT_TOKEN"
       $CI_API_V4_URL/projects/$IMPACT_PROJECT_ID/pipelines/$IMPACT_PIPELINE_ID/jobs
       > impact_jobs.json
-    - export IMPACT_ubuntu18_JOB_ID=$(cat impact_jobs.json | python3 -c "import json, sys; print([entry for entry in json.load(sys.stdin) if entry['name'] == 'test:ubuntu18'][0]['id'])"
+    - export IMPACT_ubuntu18_JOB_ID=$(cat impact_jobs.json | python3 -c "import json, sys; print([entry for entry in json.load(sys.stdin) if entry['name'] == 'test:ubuntu18'][0]['id'])")
     - echo $IMPACT_ubuntu18_JOB_ID
     - mkdir upstream_debs
     - >
@@ -157,7 +157,7 @@ build-latest-ubuntu18:
 trigger-rocstar-fsi:
   stage: test-downstream
   rules:
-    - if: '$CI_PIPELINE_TRIGGERED == "true"' # redundant, but left for clarity
+    - if: '$CI_PIPELINE_SOURCE == "pipeline" || $CI_PIPELINE_SOURCE == "triggered"' # redundant, but left for clarity
       when: never
     - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "ALF_test_mpp"'
   variables:
