@@ -88,7 +88,7 @@ build-latest-centos7:
       curl --output upstream_rpms/artifacts.zip --insecure --header "PRIVATE-TOKEN: $IMPACT_TOKEN"
       $CI_API_V4_URL/projects/$IMPACT_PROJECT_ID/jobs/$IMPACT_centos7_JOB_ID/artifacts
     - unzip upstream_rpms/artifacts.zip -d upstream_rpms
-    - yum -y install ./upstream_rpms/build/*.rpm
+    - sudo yum -y install ./upstream_rpms/build/*.rpm
     - mkdir build
     - cd build
     - >
@@ -112,7 +112,7 @@ build-latest-centos7:
 build-latest-ubuntu18:
   stage: test
   rules:
-      - if: '$CI_COMMIT_REF_NAME == "ALF_test_mpp"'
+    - if: '$CI_COMMIT_REF_NAME == "ALF_test_mpp"'
   image: ilrocstar/rocstar-fsi-test-ubuntu18:v1
   script:
     - >
@@ -135,7 +135,7 @@ build-latest-ubuntu18:
       curl --output upstream_debs/artifacts.zip --insecure --header "PRIVATE-TOKEN: $IMPACT_TOKEN"
       $CI_API_V4_URL/projects/$IMPACT_PROJECT_ID/jobs/$IMPACT_ubuntu18_JOB_ID/artifacts
     - unzip upstream_debs/artifacts.zip -d upstream_debs
-    - apt -y install ./upstream_debs/build/*.deb
+    - sudo apt -y install ./upstream_debs/build/*.deb
     - mkdir build
     - cd build
     - >
