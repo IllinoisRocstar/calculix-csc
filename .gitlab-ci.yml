@@ -1,9 +1,15 @@
 stages:
   - test
+  - test-downstream
   - deploy
+
+variables:
+  IMPACT_PROJECT_ID: 89
 
 ubuntu18-test:
   stage: test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
   image: ilrocstar/calculix-test-ubuntu18:v1
   script:
     - mkdir build
@@ -29,6 +35,8 @@ ubuntu18-test:
 
 centos7-test:
   stage: test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push"'
   image: ilrocstar/calculix-test-centos7:v1
   script:
     - mkdir build
@@ -54,10 +62,118 @@ centos7-test:
     paths:
       - "build/*.rpm"
 
+build-latest-centos7:
+  stage: test
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "ALF_test_mpp"'
+  image: ilrocstar/rocstar-fsi-test-centos7:v1
+  script:
+    - >
+      curl --insecure --header "PRIVATE-TOKEN: $IMPACT_TOKEN"
+      $CI_API_V4_URL/projects/$IMPACT_PROJECT_ID/pipelines?order_by=updated_at
+      > impact_pipelines.json
+    - >
+      if [[ -z $IMPACT_PIPELINE_ID ]]; then
+        export IMPACT_PIPELINE_ID=$(cat impact_pipelines.json | python3 -c "import json, sys;print(json.load(sys.stdin)[0]['id'])")
+      fi
+    - echo $IMPACT_PIPELINE_ID
+    - >
+      curl --insecure --header "PRIVATE-TOKEN: $IMPACT_TOKEN"
+      $CI_API_V4_URL/projects/$IMPACT_PROJECT_ID/pipelines/$IMPACT_PIPELINE_ID/jobs
+      > impact_jobs.json
+    - export IMPACT_centos7_JOB_ID=$(cat impact_jobs.json | python3 -c "import json, sys; print([entry for entry in json.load(sys.stdin) if entry['name'] == 'test:centos7'][0]['id'])"
+    - echo $IMPACT_centos7_JOB_ID
+    - mkdir upstream_rpms
+    - >
+      curl --output upstream_rpms/artifacts.zip --insecure --header "PRIVATE-TOKEN: $IMPACT_TOKEN"
+      $CI_API_V4_URL/projects/$IMPACT_PROJECT_ID/jobs/$IMPACT_centos7_JOB_ID/artifacts
+    - unzip upstream_rpms/artifacts.zip -d upstream_rpms
+    - yum -y install ./upstream_rpms/build/*.rpm
+    - mkdir build
+    - cd build
+    - >
+      cmake3 ..
+      -DCMAKE_BUILD_TYPE=Release
+      -DBUILD_SHARED_LIBS=ON
+      -DENABLE_TESTING=OFF
+      -DENABLE_PAR=ON
+      -DENABLE_CSC=ON
+      -DENABLE_CFD_SUPPORT=ON
+      -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx
+      -DMPIEXEC_EXECUTABLE=/usr/lib64/openmpi/bin/mpiexec
+      -DBOOST_INCLUDEDIR=/usr/include/boost169
+      -DBOOST_LIBRARYDIR=/usr/lib64/boost169
+    - make -j$(nproc)
+    - cpack3 -G RPM
+  artifacts:
+    paths:
+      - "build/*.rpm"
+
+build-latest-ubuntu18:
+  stage: test
+  rules:
+      - if: '$CI_COMMIT_REF_NAME == "ALF_test_mpp"'
+  image: ilrocstar/rocstar-fsi-test-ubuntu18:v1
+  script:
+    - >
+      curl --insecure --header "PRIVATE-TOKEN: $IMPACT_TOKEN"
+      $CI_API_V4_URL/projects/$IMPACT_PROJECT_ID/pipelines?order_by=updated_at
+      > impact_pipelines.json
+    - >
+      if [[ -z $IMPACT_PIPELINE_ID ]]; then
+        export IMPACT_PIPELINE_ID=$(cat impact_pipelines.json | python3 -c "import json, sys;print(json.load(sys.stdin)[0]['id'])")
+      fi
+    - echo $IMPACT_PIPELINE_ID
+    - >
+      curl --insecure --header "PRIVATE-TOKEN: $IMPACT_TOKEN"
+      $CI_API_V4_URL/projects/$IMPACT_PROJECT_ID/pipelines/$IMPACT_PIPELINE_ID/jobs
+      > impact_jobs.json
+    - export IMPACT_ubuntu18_JOB_ID=$(cat impact_jobs.json | python3 -c "import json, sys; print([entry for entry in json.load(sys.stdin) if entry['name'] == 'test:ubuntu18'][0]['id'])"
+    - echo $IMPACT_ubuntu18_JOB_ID
+    - mkdir upstream_debs
+    - >
+      curl --output upstream_debs/artifacts.zip --insecure --header "PRIVATE-TOKEN: $IMPACT_TOKEN"
+      $CI_API_V4_URL/projects/$IMPACT_PROJECT_ID/jobs/$IMPACT_ubuntu18_JOB_ID/artifacts
+    - unzip upstream_debs/artifacts.zip -d upstream_debs
+    - apt -y install ./upstream_debs/build/*.deb
+    - mkdir build
+    - cd build
+    - >
+      cmake ..
+      -DCMAKE_BUILD_TYPE=Release
+      -DBUILD_SHARED_LIBS=ON
+      -DENABLE_TESTING=OFF
+      -DENABLE_PAR=ON
+      -DENABLE_CSC=ON
+      -DENABLE_CFD_SUPPORT=ON
+      -DMPI_CXX_COMPILER=/usr/bin/mpicxx.openmpi
+      -DMPIEXEC_EXECUTABLE=/usr/bin/mpiexec.openmpi
+    - make -j$(nproc)
+    - cpack -G DEB
+  artifacts:
+    paths:
+      - "build/*.deb"
+
+trigger-rocstar-fsi:
+  stage: test-downstream
+  rules:
+    - if: '$CI_PIPELINE_TRIGGERED == "true"' # redundant, but left for clarity
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "ALF_test_mpp"'
+  variables:
+    CALCULIX_CSC_PIPELINE_ID: $CI_PIPELINE_ID
+  needs:
+    - build-latest-centos7
+    - build-latest-ubuntu18
+  trigger:
+    project: rocstar_modern/rocstar-fsi-test
+    branch: ALF_test_mpp
+    strategy: depend
+
 deploy-all:
   stage: deploy
-  only:
-    - master@rocstar_modern/calculix-csc
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_REF_NAME == "master"'
   script:
     - apt-get install -y openssh-client
     - eval $(ssh-agent -s)
