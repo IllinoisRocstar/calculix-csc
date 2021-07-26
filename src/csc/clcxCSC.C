@@ -1,17 +1,23 @@
-#include "clcxCSC.H"
-#include "stepNonlinGeo.H"
+#include <KDTreeVectorofVectorsAdaptor.h>
+#include <math.h>
+
 #include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <limits>
 #include <map>
-#include <math.h>
+#include <nanoflann.hpp>
 #include <set>
 #include <sstream>
 #include <string>
+
+#include "clcxCSC.H"
+#include "stepNonlinGeo.H"
 #ifdef HAVE_CFD
 #include <flann/flann.hpp>
 #endif
+
+typedef std::vector<std::vector<double>> my_vector_of_vectors_t;
 
 void clcx_module_upd_bc_wrapper(void *context, double dt) {
   static_cast<clcx_module *>(context)->update_bc(dt);
@@ -19,16 +25,24 @@ void clcx_module_upd_bc_wrapper(void *context, double dt) {
 
 // defaults constructor
 clcx_module::clcx_module()
-    : _vrb(0), _rank(0), _nproc(1), _cfd_data(false), _nFsiNde(0), _nFsiTri(0),
-      _nFsiQuad(0), _nFsiFct(0), _totElmNum(0), _lowTetElmNum(0),
-      _lowHexElmNum(0), _updHndl(nullptr) {
+    : _vrb(0),
+      _rank(0),
+      _nproc(1),
+      _cfd_data(false),
+      _nFsiNde(0),
+      _nFsiTri(0),
+      _nFsiQuad(0),
+      _nFsiFct(0),
+      _totElmNum(0),
+      _lowTetElmNum(0),
+      _lowHexElmNum(0),
+      _updHndl(nullptr) {
   _ci = std::make_shared<clcx_interface>();
   _ci->register_update_bc(&clcx_module_upd_bc_wrapper, this);
 }
 
 // COM module loader
 void clcx_module::Load(const std::string &name) {
-
   // anouncing default communicator
   MPI_Comm inComm;
   inComm = COM_get_default_communicator();
@@ -146,7 +160,6 @@ extern "C" void clcxcsc_unload_module(const char *name) {
 }
 
 int clcx_module::message(std::string msg, bool enfv) {
-
   if (_rank == 0 && (!enfv || (_vrb > 0 && enfv)))
     std::cout << "Calculix : " << msg << std::endl;
 
@@ -204,8 +217,7 @@ void clcx_module::run() {
 
 void clcx_module::finalize() {
   message("Finilizing ...");
-  if (main_process())
-    _ci->finalize();
+  if (main_process()) _ci->finalize();
   message("Done finalizing");
 }
 
@@ -225,7 +237,6 @@ void clcx_module::preprocess(std::string actStr) {
   }
 
   if (actStr.find("rocstar") != std::string::npos) {
-
     if (main_process()) {
       // read CFD data if requested
       if (_cfd_data)
@@ -253,7 +264,6 @@ void clcx_module::preprocess(std::string actStr) {
 }
 
 void clcx_module::register_global_data() {
-
   // registering solver state
   COM_new_window(_wname_vol, MPI_COMM_NULL);
 
@@ -303,8 +313,7 @@ void clcx_module::register_volume_data() {
         _elmTypIdx.find("C3D8") == _elmTypIdx.end()) {
       message("Only tetrahedral and hexahedral elements are supported!");
       message("Element types found");
-      for (auto const &eti : _elmTypIdx)
-        message(eti.first);
+      for (auto const &eti : _elmTypIdx) message(eti.first);
       throw;
     }
   }
@@ -362,7 +371,6 @@ void clcx_module::register_volume_data() {
 
 // interface data registration
 void clcx_module::register_surface_data() {
-
   // surface data registration
   COM_new_window(_wname_srf, MPI_COMM_NULL);
 
@@ -400,11 +408,21 @@ void clcx_module::register_surface_data() {
 
   // updating tractions from previous run
   for (int iFct = 0; iFct < _nFsiFct; iFct++) {
+    // Find correct index for _fsiTs_alp and _fsiTriNorm that matches with
+    // element (_ci->nelemload[2*iFct]) 
+
+    // _fsiClcxLoadMap has [iFct <--> Required
+    // Correct Index] mapped.
+    // auto it = _fsiClcxLoadMap.find(iFct);
+    // int idx = (int)it->second;
+    
+    int idx = _fsiLoadArray[iFct];
+
     // updating interface quantities
     double pressure = _ci->xload[iFct * 2];
-    _fsiTs_alp[iFct * 3] = _fsiTriNorm[iFct * 3] * pressure;
-    _fsiTs_alp[iFct * 3 + 1] = _fsiTriNorm[iFct * 3 + 1] * pressure;
-    _fsiTs_alp[iFct * 3 + 2] = _fsiTriNorm[iFct * 3 + 2] * pressure;
+    _fsiTs_alp[idx * 3] = _fsiTriNorm[idx * 3] * pressure;
+    _fsiTs_alp[idx * 3 + 1] = _fsiTriNorm[idx * 3 + 1] * pressure;
+    _fsiTs_alp[idx * 3 + 2] = _fsiTriNorm[idx * 3 + 2] * pressure;
   }
 
   // supporting only displacement and velocity
@@ -424,6 +442,7 @@ void clcx_module::register_surface_data() {
   COM_new_dataitem(_wname_srf + ".Ts", 'n', COM_DOUBLE, 1, "");
   COM_new_dataitem(_wname_srf + ".rhos", 'e', COM_DOUBLE, 1, "");
   COM_new_dataitem(_wname_srf + ".bcflag", 'p', COM_INT, 1, "");
+  COM_new_dataitem(_wname_srf + ".loadmap", 'n', COM_INT, 1, "");
   if (_nFsiNde > 0) {
     // COM_set_size(_wname_srf + ".u", 1, _nFsiNde, 3);
     COM_set_array(_wname_srf + ".u", _rank + 1, &_fsiU[0], 3);
@@ -457,6 +476,9 @@ void clcx_module::register_surface_data() {
     // registering bcflag
     COM_set_size(_wname_srf + ".bcflag", _rank + 1, 1);
     COM_set_array(_wname_srf + ".bcflag", _rank + 1, &_fsibcflag, 1);
+
+    // registering caculix volume elements to FSI facets load map
+    COM_set_array(_wname_srf + ".loadmap", _rank + 1, &_fsiLoadArray[0], 1);
   }
 
   //// input variables
@@ -516,14 +538,12 @@ void clcx_module::scan_fsi_2() {
 
   // total number of nodes in FSI patches
   _nFsiNde = 0;
-  for (auto const &patch : _fsiNSetIdx)
-    _nFsiNde += patch.second.size();
+  for (auto const &patch : _fsiNSetIdx) _nFsiNde += patch.second.size();
   message("Number of FSI nodes " + std::to_string(_nFsiNde));
 
   // coodinates of all fsi nodes
   for (auto const &patch : _fsiNSetIdx)
-    for (auto const &ndeIdx : patch.second)
-      _fsiNdeIdx.push_back(ndeIdx);
+    for (auto const &ndeIdx : patch.second) _fsiNdeIdx.push_back(ndeIdx);
 
   // loop through all elements and find tri faces that share fsi nodes
   _nFsiTri = 0;
@@ -545,8 +565,7 @@ void clcx_module::scan_fsi_2() {
         }
       }
 
-      if (!faceIsOn)
-        continue;
+      if (!faceIsOn) continue;
 
       // std::cout << "Tet Idx " << _elmTypIdx["C3D4"][tetIdx] << " face "
       //          << facIdx << " is on\n";
@@ -561,7 +580,7 @@ void clcx_module::scan_fsi_2() {
   message("Founds " + std::to_string(_nFsiTri) +
           " Tri facets on FSI surfaces.");
 
-  // coodinates of all fsi nodes
+  // coordinates of all fsi nodes
   // renumbering face connectivities
   _fsiNdeCrd.clear();
   std::map<size_t, size_t> vol2srfConn;
@@ -677,7 +696,7 @@ void clcx_module::scan_fsi() {
           " Quad facets on FSI surfaces.");
   _nFsiFct = _nFsiTri + _nFsiQuad;
 
-  // coodinates of all fsi nodes
+  // coordinates of all fsi nodes
   // renumbering face connectivities
   std::vector<int> _fsiElmConn(_fsiTriConn);
   _fsiElmConn.insert(_fsiElmConn.end(), _fsiQuadConn.begin(),
@@ -698,6 +717,7 @@ void clcx_module::scan_fsi() {
       }
     }
   }
+
   message("Found " + std::to_string(_nFsiNde) + " FSI nodes.");
   // std::cout << "FSI node coordinates " << std::endl;
   // for (int iNde = 0; iNde < _fsiNdeCrd.size() / 3; iNde++)
@@ -718,6 +738,305 @@ void clcx_module::scan_fsi() {
   message("FSI surface connectivity number of elements is " +
           std::to_string(_fsiTriConnInterface.size() / 3 +
                          _fsiQuadConnInterface.size() / 4));
+
+  //  for (int h=0; h<(int)(_fsiQuadConnInterface.size()/4); h++) {
+  //    std::cout << h << " --> " << _fsiQuadConnInterface[h*4 + 0]-1 << ","
+  //              << _fsiQuadConnInterface[h*4 + 1]-1 << ","
+  //              << _fsiQuadConnInterface[h*4 + 2]-1 << ","
+  //              << _fsiQuadConnInterface[h*4 + 3]-1 << std::endl;
+
+  //    std::cout << h << " --> ";
+  //
+  //    std::cout << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 0]-1)*3 + 0] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 0]-1)*3 + 1] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 0]-1)*3 + 2] << "
+  //              || ";
+  //
+  //    std::cout << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 1]-1)*3 + 0] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 1]-1)*3 + 1] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 1]-1)*3 + 2] << "
+  //              || ";
+  //
+  //    std::cout << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 2]-1)*3 + 0] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 2]-1)*3 + 1] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 2]-1)*3 + 2] << "
+  //              || ";
+  //
+  //    std::cout << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 3]-1)*3 + 0] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 3]-1)*3 + 1] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 3]-1)*3 + 2] <<
+  //              std::endl;
+
+  //    std::cout << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 0]-1)*3 + 0] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 0]-1)*3 + 1] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 0]-1)*3 + 2] <<
+  //              std::endl;
+  //
+  //    std::cout << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 1]-1)*3 + 0] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 1]-1)*3 + 1] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 1]-1)*3 + 2] <<
+  //              std::endl;
+  //
+  //    std::cout << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 2]-1)*3 + 0] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 2]-1)*3 + 1] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 2]-1)*3 + 2] <<
+  //              std::endl;
+  //
+  //    std::cout << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 3]-1)*3 + 0] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 3]-1)*3 + 1] << ","
+  //              << _fsiNdeCrd[(_fsiQuadConnInterface[h*4 + 3]-1)*3 + 2] <<
+  //              std::endl;
+  //  }
+
+  // Create calculix elements faces to fsi facets map
+  // _fsiClcxLoadMap
+  for (int i = 0; i < (_ci->nload); i++) {
+    // Find the center for each face represented by elem id + P{1..6}
+    size_t elemId = _ci->nelemload[2 * i];
+    auto faceNum = _ci->sideload[20 * i + 1];
+    std::vector<double> vIds;  // Stores 4 vertices for a quad face (size 4*3 =
+                               // 12) and 3 for tri (size 9)
+    std::vector<int> tmpConnList;  // For debugging
+
+    if (_lowHexElmNum > 0) {
+      if (_ci->ipkon[elemId - 1] > -1) {
+        if (faceNum == '1') {
+          for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 3; k++) {
+              vIds.push_back(_ci->co[k + (_ci->kon[_ci->ipkon[elemId - 1] +
+                                                   hexFaceConnPtrn[j]] -
+                                          1) *
+                                             3]);
+            }
+            tmpConnList.push_back(
+                _ci->kon[_ci->ipkon[elemId - 1] + hexFaceConnPtrn[j]]);
+          }
+        } else if (faceNum == '2') {
+          for (int j = 4; j < 8; j++) {
+            for (int k = 0; k < 3; k++) {
+              vIds.push_back(_ci->co[k + (_ci->kon[_ci->ipkon[elemId - 1] +
+                                                   hexFaceConnPtrn[j]] -
+                                          1) *
+                                             3]);
+            }
+            tmpConnList.push_back(
+                _ci->kon[_ci->ipkon[elemId - 1] + hexFaceConnPtrn[j]]);
+          }
+        } else if (faceNum == '3') {
+          for (int j = 8; j < 12; j++) {
+            for (int k = 0; k < 3; k++) {
+              vIds.push_back(_ci->co[k + (_ci->kon[_ci->ipkon[elemId - 1] +
+                                                   hexFaceConnPtrn[j]] -
+                                          1) *
+                                             3]);
+            }
+            tmpConnList.push_back(
+                _ci->kon[_ci->ipkon[elemId - 1] + hexFaceConnPtrn[j]]);
+          }
+        } else if (faceNum == '4') {
+          for (int j = 12; j < 16; j++) {
+            for (int k = 0; k < 3; k++) {
+              vIds.push_back(_ci->co[k + (_ci->kon[_ci->ipkon[elemId - 1] +
+                                                   hexFaceConnPtrn[j]] -
+                                          1) *
+                                             3]);
+            }
+            tmpConnList.push_back(
+                _ci->kon[_ci->ipkon[elemId - 1] + hexFaceConnPtrn[j]]);
+          }
+        } else if (faceNum == '5') {
+          for (int j = 16; j < 20; j++) {
+            for (int k = 0; k < 3; k++) {
+              vIds.push_back(_ci->co[k + (_ci->kon[_ci->ipkon[elemId - 1] +
+                                                   hexFaceConnPtrn[j]] -
+                                          1) *
+                                             3]);
+            }
+            tmpConnList.push_back(
+                _ci->kon[_ci->ipkon[elemId - 1] + hexFaceConnPtrn[j]]);
+          }
+        } else if (faceNum == '6') {
+          for (int j = 20; j < 24; j++) {
+            for (int k = 0; k < 3; k++) {
+              vIds.push_back(_ci->co[k + (_ci->kon[_ci->ipkon[elemId - 1] +
+                                                   hexFaceConnPtrn[j]] -
+                                          1) *
+                                             3]);
+            }
+            tmpConnList.push_back(
+                _ci->kon[_ci->ipkon[elemId - 1] + hexFaceConnPtrn[j]]);
+          }
+        }
+      }
+    }
+
+    if (_lowTetElmNum > 0) {
+      if (_ci->ipkon[elemId - 1] > -1) {
+        if (faceNum == '1') {
+          for (int j = 0; j < 3; j++) {
+            for (int k = 0; k < 3; k++) {
+              vIds.push_back(_ci->co[k + (_ci->kon[_ci->ipkon[elemId - 1] +
+                                                   tetFaceConnPtrn[j]] -
+                                          1) *
+                                             3]);
+            }
+            tmpConnList.push_back(
+                _ci->kon[_ci->ipkon[elemId - 1] + tetFaceConnPtrn[j]]);
+          }
+        } else if (faceNum == '2') {
+          for (int j = 3; j < 6; j++) {
+            for (int k = 0; k < 3; k++) {
+              vIds.push_back(_ci->co[k + (_ci->kon[_ci->ipkon[elemId - 1] +
+                                                   tetFaceConnPtrn[j]] -
+                                          1) *
+                                             3]);
+            }
+            tmpConnList.push_back(
+                _ci->kon[_ci->ipkon[elemId - 1] + tetFaceConnPtrn[j]]);
+          }
+        } else if (faceNum == '3') {
+          for (int j = 6; j < 9; j++) {
+            for (int k = 0; k < 3; k++) {
+              vIds.push_back(_ci->co[k + (_ci->kon[_ci->ipkon[elemId - 1] +
+                                                   tetFaceConnPtrn[j]] -
+                                          1) *
+                                             3]);
+            }
+            tmpConnList.push_back(
+                _ci->kon[_ci->ipkon[elemId - 1] + tetFaceConnPtrn[j]]);
+          }
+        } else if (faceNum == '4') {
+          for (int j = 9; j < 12; j++) {
+            for (int k = 0; k < 3; k++) {
+              vIds.push_back(_ci->co[k + (_ci->kon[_ci->ipkon[elemId - 1] +
+                                                   tetFaceConnPtrn[j]] -
+                                          1) *
+                                             3]);
+            }
+            tmpConnList.push_back(
+                _ci->kon[_ci->ipkon[elemId - 1] + tetFaceConnPtrn[j]]);
+          }
+        }
+      }
+    }
+
+    //    std::cout << elemId << "," << faceNum << "," << tmpConnList[0] << ","
+    //    << tmpConnList[1] << "," << tmpConnList[2]
+    //              << "," << tmpConnList[3] << std::endl;
+
+    // Calculate center
+    _fsiClcxCenters.emplace_back(std::vector<double>(3, 0.0));
+
+    if (_lowTetElmNum > 0) {
+      _fsiClcxCenters[i][0] = (vIds[0] + vIds[3] + vIds[6]) / 3;
+      _fsiClcxCenters[i][1] = (vIds[1] + vIds[4] + vIds[7]) / 3;
+      _fsiClcxCenters[i][2] = (vIds[2] + vIds[5] + vIds[8]) / 3;
+    }
+
+    if (_lowHexElmNum > 0) {
+      _fsiClcxCenters[i][0] = (vIds[0] + vIds[3] + vIds[6] + vIds[9]) / 4;
+      _fsiClcxCenters[i][1] = (vIds[1] + vIds[4] + vIds[7] + vIds[10]) / 4;
+      _fsiClcxCenters[i][2] = (vIds[2] + vIds[5] + vIds[8] + vIds[11]) / 4;
+    }
+  }
+
+  // Calculate surface centers
+  // Connectivity information for IMPACT Facets
+  if (_lowTetElmNum > 0) {
+    for (int j = 0; j < int(_fsiTriConnInterface.size() / 3); j++) {
+      std::vector<double>
+          vIds;  // Stores 4 vertices for a quad face (size 4*3 = 12)
+      for (int k = 0; k < 3; k++) {
+        for (int h = 0; h < 3; h++) {
+          vIds.push_back(
+              _fsiNdeCrd[(_fsiTriConnInterface[j * 3 + k] - 1) * 3 + h]);
+        }
+      }
+
+      // Calculate center
+      _fsiSurfaceCenters.emplace_back(std::vector<double>(3, 0.0));
+      _fsiSurfaceCenters[j][0] = (vIds[0] + vIds[3] + vIds[6]) / 3;
+      _fsiSurfaceCenters[j][1] = (vIds[1] + vIds[4] + vIds[7]) / 3;
+      _fsiSurfaceCenters[j][2] = (vIds[2] + vIds[5] + vIds[8]) / 3;
+    }
+  }
+
+  if (_lowHexElmNum > 0) {
+    for (int j = 0; j < int(_fsiQuadConnInterface.size() / 4); j++) {
+      std::vector<double>
+          vIds;  // Stores 4 vertices for a quad face (size 4*3 = 12)
+      for (int k = 0; k < 4; k++) {
+        for (int h = 0; h < 3; h++) {
+          vIds.push_back(
+              _fsiNdeCrd[(_fsiQuadConnInterface[j * 4 + k] - 1) * 3 + h]);
+        }
+      }
+
+      // Calculate center
+      _fsiSurfaceCenters.emplace_back(std::vector<double>(3, 0.0));
+      _fsiSurfaceCenters[j][0] = (vIds[0] + vIds[3] + vIds[6] + vIds[9]) / 4;
+      _fsiSurfaceCenters[j][1] = (vIds[1] + vIds[4] + vIds[7] + vIds[10]) / 4;
+      _fsiSurfaceCenters[j][2] = (vIds[2] + vIds[5] + vIds[8] + vIds[11]) / 4;
+    }
+  }
+
+  //  for (int i=0; i<_fsiSurfaceCenters.size(); i++) {
+  ////    std::cout << _fsiSurfaceCenters[i][0] << "," << _fsiClcxCenters[i][0]
+  ///<< std::endl; /    std::cout << _fsiSurfaceCenters[i][1] << "," <<
+  ///_fsiClcxCenters[i][1] << std::endl; /    std::cout <<
+  ///_fsiSurfaceCenters[i][2] << "," << _fsiClcxCenters[i][2] << std::endl; /
+  ///std::cout << std::endl;
+  //
+  //    //std::cout << _fsiSurfaceCenters[i][0] << "," <<
+  //    _fsiSurfaceCenters[i][1] << "," << _fsiSurfaceCenters[i][2] <<
+  //    std::endl;
+  //    //std::cout << _fsiClcxCenters[i][0] << "," << _fsiClcxCenters[i][1] <<
+  //    "," << _fsiClcxCenters[i][2] << std::endl;
+  //  }
+  // throw;
+
+  // Build a kdtree using surface center ids. Start inquiry with calculix
+  // centers and start assigning matching facets. This map will be  0....nload
+  // (calculix side) <--> 0 ... facet (FSI side)
+  typedef KDTreeVectorOfVectorsAdaptor<my_vector_of_vectors_t, double>
+      my_kd_tree_t;
+  my_kd_tree_t mat_index(3, _fsiSurfaceCenters, 50);
+  mat_index.index->buildIndex();
+
+//  std::ofstream fOut;
+//  fOut.open("kdtree.txt");
+
+  for (int h = 0; h < _fsiClcxCenters.size(); h++) {
+    // do a knn search
+    const size_t num_results = 1;
+    std::vector<size_t> ret_indexes(num_results);
+    std::vector<double> out_dists_sqr(num_results);
+    nanoflann::KNNResultSet<double> resultSet(num_results);
+
+    resultSet.init(&ret_indexes[0], &out_dists_sqr[0]);
+    mat_index.index->findNeighbors(resultSet, &_fsiClcxCenters[h][0],
+                                   nanoflann::SearchParams(50));
+
+    if ((num_results > 0) && (out_dists_sqr[0] < 1e-15))
+      _fsiClcxLoadMap[h] = ret_indexes[0];
+
+//    for (size_t i = 0; i < num_results; i++) {
+//      std::cout << "index[" << h << "]=" << ret_indexes[i] << "out_dist_sqr=" << out_dists_sqr[i] << std::endl;
+//      fOut << "index[" << h << "]=" << ret_indexes[i] << "out_dist_sqr=" << out_dists_sqr[i] << std::endl;
+//    }
+  }
+
+  // Populate the map array for COM registeration
+  _fsiLoadArray.clear();
+  auto it = std::map<size_t,size_t>::iterator();
+  it = _fsiClcxLoadMap.begin();
+  while (it != _fsiClcxLoadMap.end()) {
+//    std::cout << it->first << "," << it->second << std::endl;
+    _fsiLoadArray.push_back((int)it->second);
+    it++;
+  }
+//  fOut.close();
+//  std::cin.get();
 }
 
 // decomposes a string into tokens using single delimiter
@@ -733,8 +1052,7 @@ std::vector<std::string> clcx_module::tokenize(const char *lineIn,
   } else {
     std::string tk;
     std::vector<std::string> tokens;
-    while (std::getline(buf, tk, delim))
-      tokens.push_back(tk);
+    while (std::getline(buf, tk, delim)) tokens.push_back(tk);
     return tokens;
   }
 }
@@ -770,8 +1088,7 @@ void clcx_module::initialize(double &initTime, MPI_Comm &inComm,
   COM_get_dataitems(volWinIn.c_str(), &nItems, &names);
   std::string dataItemNames(names);
   message("Number of dataitems passed " + std::to_string(nItems));
-  if (nItems > 0)
-    message("Dataitem names : " + dataItemNames);
+  if (nItems > 0) message("Dataitem names : " + dataItemNames);
 
   // volume data
   // restoring state from volume window
@@ -783,8 +1100,7 @@ void clcx_module::initialize(double &initTime, MPI_Comm &inComm,
     char *buf;
     COM_get_array((volWinIn + ".state").c_str(), 0, &buf);
     auto ss = std::make_shared<std::ofstream>("restart_data.bin");
-    for (int i = 0; i < sz; i++)
-      (*ss) << buf[i];
+    for (int i = 0; i < sz; i++) (*ss) << buf[i];
     ss->close();
     std::ifstream ifs("restart_data.bin");
     _ci->load(ifs);
@@ -826,7 +1142,6 @@ void clcx_module::initialize(double &initTime, MPI_Comm &inComm,
 
 void clcx_module::update_solution(double &currTime, double &timeStep,
                                   int &updHndl) {
-
   if (main_process()) {
     _upd_start_time = currTime;
     _upd_time_step = timeStep;
@@ -919,8 +1234,9 @@ void clcx_module::update_solution(double &currTime, double &timeStep,
     }
 
     if (clcx_tinc < clcx_tper_min) {
-      message("Cannot step less than the minimum value specified in the input "
-              "file. Adjust input file.");
+      message(
+          "Cannot step less than the minimum value specified in the input "
+          "file. Adjust input file.");
       throw;
     }
   }
@@ -936,6 +1252,15 @@ void clcx_module::update_solution(double &currTime, double &timeStep,
     fsi_sync_other_quantities();
     // debug_print(_wname_srf + ".u", _rank + 1, 0, _comm, "");
   }
+
+  // DEBUG LINES for AKASH
+  std::cout << " HERE 1" << std::endl;
+  int out_handle = COM_get_function_handle("OUT.write_dataitem");
+  std::string whatToWrite = std::string(_wname_srf) + ".all";
+  int whatToWriteHandle = COM_get_dataitem_handle(whatToWrite.c_str());
+  COM_call_function(out_handle, "./calc_surf_win_0", &whatToWriteHandle,
+                    _wname_srf.c_str(),
+                    std::to_string(_upd_start_time).c_str());
 }
 
 void clcx_module::scan_elements() {
@@ -966,9 +1291,10 @@ void clcx_module::scan_elements() {
 
   const std::vector<size_t> &hexIdx = _elmTypIdx["C3D8"];
   _hexConn.clear();
-  for (auto it = hexIdx.begin(); it != hexIdx.end(); it++)
+  for (auto it = hexIdx.begin(); it != hexIdx.end(); it++) {
     for (int iCon = _ci->ipkon[*it]; iCon <= (_ci->ipkon[*it] + 7); iCon++)
       _hexConn.push_back(_ci->kon[iCon]);
+  }
 
   //// trying to factor out non-tetrahedral elements
   //// two possibilities for this conditional to come true:
@@ -1039,16 +1365,20 @@ void clcx_module::fsi_augment_inp() {
     if (line.find("*STEP") != std::string::npos) {
       if (_fsiTetFaceIdx.size() > 0) {
         inpfAug << "*SURFACE, NAME=FSI, TYPE=ELEMENT\n";
-        for (auto const &elm : _fsiTetFaceIdx)
+        for (auto const &elm : _fsiTetFaceIdx) {
           inpfAug << std::to_string(elm.first + 1) << ", S"
                   << std::to_string(elm.second) << std::endl;
+
+          std::cout << std::to_string(elm.first + 1) << ", S"
+                    << std::to_string(elm.second) << std::endl;
+        }
       }
     }
     // solution 1, 0.0 arbitrarily selected
     if (line.find("*END STEP") != std::string::npos)
-      if (_fsiTetFaceIdx.size() > 0)
-        inpfAug << "*DLOAD\nFSI, P1, 0.0\n";
-    // solution 2
+      if (_fsiTetFaceIdx.size() > 0) inpfAug << "*DLOAD\nFSI, P1, 0.0\n";
+
+    // // solution 2
     // if (line.find("*END STEP") != std::string::npos) {
     //  if (_fsiTetFaceIdx.size() > 0) {
     //    inpfAug << "*DLOAD\n";
@@ -1056,7 +1386,7 @@ void clcx_module::fsi_augment_inp() {
     //      inpfAug << std::to_string(elm.first + 1) << ", P"
     //              << std::to_string(elm.second) << ", 1.0" << std::endl;
     //  }
-    //}
+    // }
     inpfAug << line << std::endl;
   }
 
@@ -1065,7 +1395,6 @@ void clcx_module::fsi_augment_inp() {
 }
 
 void clcx_module::fsi_sync_loads() {
-
   // current loads
   // for (int iload = 0; iload < (_ci->nload); iload++)
   //  std::cout << "FSI load " << iload << " Element "
@@ -1083,8 +1412,10 @@ void clcx_module::fsi_sync_loads() {
   }
 
   if (_fsiTs_alp.size() != 3 * (_nFsiFct)) {
-    message("The FSI traction vector seems to be not initialized properly. "
-            "Presetting with zero load.");
+    message(
+        "The FSI traction vector seems to be not initialized properly. "
+        "Presetting with zero load.");
+
     _fsiTs_alp.resize(3 * (_nFsiFct), 0.0);
   }
 
@@ -1095,20 +1426,52 @@ void clcx_module::fsi_sync_loads() {
   // computing surface normals and applying pressure loads
   fsi_compute_norms();
   for (int iFct = 0; iFct < _nFsiFct; iFct++) {
-    double pressure = _fsiTs_alp[iFct * 3] * _fsiTriNorm[iFct * 3] +
-                      _fsiTs_alp[iFct * 3 + 1] * _fsiTriNorm[iFct * 3 + 1] +
-                      _fsiTs_alp[iFct * 3 + 2] * _fsiTriNorm[iFct * 3 + 2];
-    // std::cout << "Tri " << iTri << " pressure " << pressure << std::endl;
+    // Find correct index for _fsiTs_alp and _fsiTriNorm that matches with
+    // element (_ci->nelemload[2*iFct]) 
+
+    // _fsiClcxLoadMap has [iFct <--> Required
+    // Correct Index] mapped.
+    // auto it = _fsiClcxLoadMap.find(iFct);
+    // int idx = (int)it->second;
+
+    int idx = _fsiLoadArray[iFct];
+
+    double pressure = _fsiTs_alp[idx * 3] * _fsiTriNorm[idx * 3] +
+                      _fsiTs_alp[idx * 3 + 1] * _fsiTriNorm[idx * 3 + 1] +
+                      _fsiTs_alp[idx * 3 + 2] * _fsiTriNorm[idx * 3 + 2];
+
     _ci->xload[iFct * 2] = pressure;
   }
 
   // current loads
-  // for (int iload = 0; iload < (_ci->nload); iload++)
-  //  std::cout << "FSI load " << iload << " Element "
-  //            << _ci->nelemload[2 * iload] << " load " << _ci->xload[2 *
-  //            iload]
-  //            << " sideload " << _ci->sideload[20 * iload]
-  //            << _ci->sideload[20 * iload + 1] << "\n";
+  // for (int iload = 0; iload < (_ci->nload); iload++) {
+  //   std::cout << "FSI load " << iload << " Element "
+  //              << _ci->nelemload[2 * iload] << " load " << _ci->xload[2 *
+  //              iload]
+  //              << " sideload " << _ci->sideload[20 * iload]
+  //              << _ci->sideload[20 * iload + 1] << "\n";
+  // }
+
+  //  for (int iFct = 0; iFct < _nFsiFct; iFct++) {
+  //    std::cout << _ci->nelemload[2 * iFct] << " , " << _ci->sideload[20 *
+  //    iFct] << _ci->sideload[20 * iFct + 1]  << " , " <<  iFct << std::endl;
+  //  }
+
+  // Connectivity information for IMPACT Facets
+  //    for (int i=0; i<int(_fsiQuadConnInterface.size() / 4); i++) {
+  //      for (int j=0; j<4; j++) {
+  //        std::cout << _fsiQuadConnInterface[i*4 + j] << " ";
+  //      }
+  //      std::cout << std::endl;
+  //    }
+
+  // Get node ids for those
+  //  for (int i=0; i<int(_fsiNdeCrd.size()/3); i++) {
+  //    std::cout << _fsiNdeCrd[i*3] << ",";           // X Coord
+  //    std::cout << _fsiNdeCrd[i*3 + 1] << ",";       // Y Coord
+  //    std::cout << _fsiNdeCrd[i*3 + 2] << std::endl; // Z Coord
+  //  }
+  //  std::cin.get();
 }
 
 void clcx_module::scan_actions() {
@@ -1143,7 +1506,13 @@ void clcx_module::fsi_sync_other_quantities() {
   message("Synching quanties at the end of step.");
   // physics quantities
   _fsiU.clear();
+
+  std::cout << " HERE 10, &_nFsiNde1" << &_nFsiNde << std::endl;
+
   _fsiUHat.resize(_nFsiNde * 3, 0.0);
+
+  std::cout << " HERE 11, &_nFsiNde2" << &_nFsiNde << std::endl;
+
   _fsiV.clear();
   _fsiCs.resize(_nFsiFct, 0.0);
   _fsiTs.resize(_nFsiNde, 0.0);
@@ -1153,13 +1522,13 @@ void clcx_module::fsi_sync_other_quantities() {
   _fsiQs_alp.resize(_nFsiFct, 0.0);
 
   // supporting only displacement and velocity
-  // for (auto &ndeIdx : _fsiNSetIdx["C3D4"])
   size_t mt = _ci->mt;
-  for (auto &ndeIdx : _fsiNdeIdx)
+  for (auto &ndeIdx : _fsiNdeIdx) {
     for (auto iCmp = 0; iCmp < 3; iCmp++) {
       _fsiU.push_back(_ci->vold[(ndeIdx - 1) * mt + iCmp + 1]);
       _fsiV.push_back(_ci->veold[(ndeIdx - 1) * mt + iCmp + 1]);
     }
+  }
 
   // DBG
   // double min_ci, max_ci;
@@ -1213,7 +1582,6 @@ void clcx_module::set_cfd_data(std::string fn) {
 
 // TODO: supports only tetrahedral meshes
 void clcx_module::fsi_sync_loads_from_file() {
-
   // sanity checking
   if ((_ci->nload) != _nFsiTri) {
     message("Number of FSI triangles does not mach with input file!");
@@ -1223,8 +1591,9 @@ void clcx_module::fsi_sync_loads_from_file() {
   }
 
   if (_fsiTs_alp.size() != 3 * _nFsiTri) {
-    message("The FSI traction vector seems to be not initialized properly. "
-            "Presetting with zero load.");
+    message(
+        "The FSI traction vector seems to be not initialized properly. "
+        "Presetting with zero load.");
     _fsiTs_alp.resize(3 * _nFsiTri, 0.0);
   }
 
@@ -1234,10 +1603,8 @@ void clcx_module::fsi_sync_loads_from_file() {
     fsi_compute_face_centers();
 
     for (int iTri = 0; iTri < _nFsiTri; iTri++) {
-
       double pressure = 0;
-      if (_fsiTriCenCrd[iTri * 3] < 0)
-        pressure = 1.e5;
+      if (_fsiTriCenCrd[iTri * 3] < 0) pressure = 1.e5;
 
       // updating interface quantities
       _fsiTs_alp[iTri * 3] = _fsiTriNorm[iTri * 3] * pressure;
@@ -1272,8 +1639,7 @@ void clcx_module::fsi_sync_loads_from_file() {
   while (std::getline(cfd, line)) {
     ln++;
     // throw away first few lines
-    if (ln <= 1)
-      continue;
+    if (ln <= 1) continue;
 
     // get pressure and coords data
     std::vector<std::string> data = tokenize(line.c_str(), ',');
@@ -1338,7 +1704,6 @@ void clcx_module::fsi_compute_norms() {
   // tri and quad facets
   _fsiTriNorm.clear();
   for (int iFct = 0; iFct < _nFsiFct; iFct++) {
-
     std::vector<double> p0, p1, p2, v1, v2, n;
 
     if (_lowTetElmNum > 0) {
@@ -1377,6 +1742,11 @@ void clcx_module::fsi_compute_norms() {
       throw;
     }
 
+    // size_t v1_hex = _fsiQuadConn[iFct * 4] - 1;
+    // size_t v2_hex = _fsiQuadConn[iFct * 4 + 1] - 1;
+    // size_t v3_hex = _fsiQuadConn[iFct * 4 + 2] - 1;
+    // size_t v4_hex = _fsiQuadConn[iFct * 4 + 3] - 1;
+
     // in calculix, face connectivity is based on normals pointing inwards
     // element switching v1, v2 to compensate for this
     v1.push_back(p1[0] - p0[0]);
@@ -1394,8 +1764,9 @@ void clcx_module::fsi_compute_norms() {
     double l = sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
 
     if (l < 100 * std::numeric_limits<double>::epsilon()) {
-      message("Element face area is close to zero or one of the elements is "
-              "degenrate.");
+      message(
+          "Element face area is close to zero or one of the elements is "
+          "degenrate.");
       throw;
     }
 
@@ -1429,8 +1800,7 @@ void clcx_module::debug_print(const std::string &str, int pane, int pe,
     COM_get_array(str.c_str(), pane, &vm, &strid, &cap);
     printf("%s %s: after  %p\n", str.c_str(), memo ? memo : "",
            static_cast<void *>(vm));
-    for (int i = 0; i < strid * cap; i++)
-      printf("%.17e ", vm[i]);
+    for (int i = 0; i < strid * cap; i++) printf("%.17e ", vm[i]);
     printf("\n");
   }
 }
@@ -1445,10 +1815,10 @@ void clcx_module::update_bc(double dt) {
   }
 };
 
+// AAP: Added hex elements (quad face) center calculation
 void clcx_module::fsi_compute_face_centers() {
   _fsiTriCenCrd.clear();
   for (int iTri = 0; iTri < _nFsiTri; iTri++) {
-
     std::vector<double> p0, p1, p2;
 
     size_t bId = _fsiTriConn[iTri * 3] - 1;

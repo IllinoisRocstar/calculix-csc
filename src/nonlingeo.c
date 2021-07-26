@@ -2569,6 +2569,7 @@ void nonlingeo(double **cop, ITG *nk, ITG **konp, ITG **ipkonp, char **lakonp,
     }
 
     if(*nmethod!=4)SFREE(resold);
+    
 
     /*********************************************************/
     /*   end of the iteration loop                          */
