@@ -1,0 +1,33 @@
+FROM centos:7
+# ilrocstar/calculix-test-centos7:v1
+
+RUN yum -y update
+
+RUN yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+# Compilers, build tools
+RUN yum -y groupinstall "Development Tools"
+RUN yum -y install cmake3
+# MPI
+RUN yum -y install openmpi-devel
+# Dependencies
+RUN yum -y install arpack-devel exodusii-devel boost169-devel flann-devel
+
+# Install IMPACT and SPOOLES
+RUN echo -e "[NEMoSys] \n\
+name=NEMoSys \n\
+baseurl=http://nemosys-rpm-repository.illinois.rocstar \n\
+enabled=1 \n\
+gpgcheck=0 \n\
+" >> /etc/yum.repos.d/nemosys.repo
+RUN yum -y --setopt=skip_missing_names_on_install=False install impact-2.1.6-1 spooles-devel-2.2-2.el7
+
+# Finds the module command, loads the openmpi module
+RUN echo "source /etc/profile.d/modules.sh" >> /etc/skel/.bashrc
+RUN echo "module load mpi/openmpi-x86_64" >> /etc/skel/.bashrc
+ENV BASH_ENV "/etc/skel/.bashrc"
+
+# OpenMPI gives warning when mpiexec run as root
+RUN useradd -U --shell /bin/bash -m -k /etc/skel -d /home/user -c "Build Account" build
+USER build
+
+ENTRYPOINT /bin/bash

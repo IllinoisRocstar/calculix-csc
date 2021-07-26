@@ -1,0 +1,28 @@
+FROM ubuntu:18.04
+# ilrocstar/calculix-test-ubuntu18:v1
+
+RUN apt-get -y update
+
+# Build tools
+# file for cpack
+RUN apt-get -y --no-install-recommends install build-essential cmake file
+RUN apt-get -y --no-install-recommends install gfortran
+# MPI
+# ssh for openmpi-bin
+RUN apt-get -y --no-install-recommends install libopenmpi-dev openmpi-bin ssh
+# Dependencies
+RUN apt-get -y --no-install-recommends install libarpack2-dev libspooles-dev libexodusii-dev libboost-serialization-dev libboost-iostreams-dev libflann-dev
+
+# Install IMPACT
+RUN apt-get -y --no-install-recommends install wget gnupg
+RUN sh -c "wget -O - http://nemosys-repository.illinois.rocstar/nemosys-repository-pub.gpg | apt-key add -"
+RUN apt-get -y --no-install-recommends install software-properties-common
+RUN add-apt-repository "deb http://nemosys-repository.illinois.rocstar/ bionic main"
+RUN apt-get -y update
+RUN apt-get -y --no-install-recommends install impact=2.1.6-1
+
+# OpenMPI gives warning when mpiexec run as root
+RUN useradd -U --shell /bin/bash -m -d /home/user -c "Build Account" build
+USER build
+
+ENTRYPOINT /bin/bash

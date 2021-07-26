@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.6)
+cmake_minimum_required(VERSION 3.9)
 
 #########################
 # project global settings
@@ -46,19 +46,15 @@ if(NOT CMAKE_BUILD_TYPE)
       CACHE STRING "Build type (Release, Debug, RelWithDebugInfo, MinSizeRel)")
 endif()
 
-macro(opt OPTION HELP VALUE)
-  option(ENABLE_${OPTION} ${HELP} ${VALUE})
-  set(OPT_TEXI "${OPT_TEXI}\n@item ENABLE_${OPTION}\n${HELP} (default: ${VALUE})")
-endmacro(opt)
-
 # package module
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake/)
 
 # set options
-opt(TESTING "Enable testing" ON)
-opt(PAR "Builds parallel Epic solver" ON)
-opt(CSC "Builds solver driver and csc modules" ON)
-opt(CFD_SUPPORT "Enables usage of offline CFD data" OFF)
+option(ENABLE_TESTING "Enable testing" ON)
+option(ENABLE_PAR "Builds parallel Epic solver" ON)
+option(ENABLE_CSC "Builds solver driver and csc modules" ON)
+option(ENABLE_CFD_SUPPORT "Enables usage of offline CFD data" OFF)
+option(BUILD_SHARED_LIBS "Build shared libraries (and not static ones)" ON)
 
 # default definitions
 add_definitions("-DUSE_MT")
@@ -94,8 +90,9 @@ if(ENABLE_PAR)
   add_definitions("-DCALCULIX_MPI")
 endif(ENABLE_PAR)
 
-find_package(LAPACK REQUIRED)
-find_package(BLAS REQUIRED)
+# According to old_install_manifest, LAPACK and BLAS are only needed as transitive dependencies of TAUCS
+# find_package(LAPACK REQUIRED)
+# find_package(BLAS REQUIRED)
 find_package(Threads REQUIRED)
 find_package(Exodus REQUIRED)
 find_package(NetCDF REQUIRED)
@@ -114,8 +111,9 @@ if (SPOOLES_LIB MATCHES SPOOLES_LIB-NOTFOUND)
     message(FATAL_ERROR "SPOOLES was not found!")
 endif()
 if (SPOOLES_LIB)
-    get_filename_component(SPOOLES_PATH ${SPOOLES_LIB} DIRECTORY CACHE)
-    include_directories(${SPOOLES_PATH})
+    get_filename_component(SPOOLES_LIB_PATH ${SPOOLES_LIB} DIRECTORY)
+    find_path(SPOOLES_INC_PATH SPOOLES.h HINTS ${SPOOLES_LIB_PATH} PATH_SUFFIXES spooles)
+    include_directories(${SPOOLES_INC_PATH})
 endif()
 
 find_library(ARPACK_LIB arpack arpack_x64 arpack_MAC HINTS /usr/lib /usr/local/lib ENV ARPACK_DIR)
@@ -136,12 +134,13 @@ endif()
 ################
 # setting files
 ################
+include(GNUInstallDirs)
 # install header files
 file(GLOB H_FILES include/*.H)
 file(GLOB h_FILES include/*.h)
 file(GLOB hpp_FILES include/*.hpp)
 set(CLCX_INC_FILES ${H_FILES} ${h_FILES} ${hpp_FILES})
-install(FILES ${CLCX_INC_FILES} DESTINATION ${CMAKE_INSTALL_PREFIX}/include)
+install(FILES ${CLCX_INC_FILES} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/clcx)
 
 add_subdirectory(src)
 
@@ -167,26 +166,26 @@ endif(ENABLE_TESTING)
 # packaging
 ############
 set(CPACK_PACKAGE_NAME "Calculix")
-set(CPACK_PACKAGE_VENDOR "")
+# set(CPACK_PACKAGE_VENDOR "")
 set(CPACK_PACKAGE_VERSION "${CLCX_VERSION}")
 set(CPACK_PACKAGE_VERSION_MAJOR "${CLCX_MAJOR_VERSION}")
 set(CPACK_PACKAGE_VERSION_MINOR "${CLCX_MINOR_VERSION}")
 set(CPACK_PACKAGE_VERSION_PATCH "${CLCX_PATCH_VERSION}")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Calculix with IMPACT interface")
-set(CPACK_PACKAGE_HOMEPAGE_URL "")
-set(CPACK_PACKAGE_CONTACT "msafdari@illinoisrocstar.com")
+set(CPACK_PACKAGE_CONTACT "Illinois Rocstar LLC <rocstar@illinoisrocstar.com>")
 
-if(CMAKE_VERSION VERSION_LESS 3.10)
-  message(WARNING "CMake 3.10 or above is required to build a DEB package.")
-else()
-  set(CPACK_GENERATOR DEB)
-  set(CPACK_DEBIAN_PACKAGE_SECTION "science")
-  set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "${CPACK_PACKAGE_HOMEPAGE_URL}")
-  set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-  set(CPACK_DEBIAN_PACKAGE_DEBUG ON)  # For testing only
-  set(CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION TRUE)  # CMake 3.4
-  set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")  # CMake 3.6
-  set(CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS ON)  # CMake 3.6
-endif()
+# Debian
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+set(CPACK_DEBIAN_PACKAGE_RELEASE 1)
+set(CPACK_DEBIAN_PACKAGE_SECTION "science")
+# set(CPACK_DEBIAN_PACKAGE_DEBUG ON)  # For testing only
+set(CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION TRUE)  # CMake 3.4
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS ON)  # CMake 3.6
+set(CPACK_DEBIAN_ARCHIVE_TYPE "gnutar")
+# RPM
+set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
+set(CPACK_RPM_PACKAGE_RELEASE 1)
+set(CPACK_RPM_PACKAGE_RELEASE_DIST ON)
+set(CPACK_RPM_PACKAGE_AUTOREQPROV ON)
 include(CPack)
-
