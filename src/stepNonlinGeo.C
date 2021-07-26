@@ -3,6 +3,8 @@
 #include "stepNonlinGeo.H"
 #include <math.h>
 #include <iostream>
+#include <algorithm>
+#include <set>
 
 //#include "matrixstorage.h"
 

@@ -188,6 +188,10 @@ private:
   std::vector<double> _fsiTs_alp;
   std::vector<double> _fsiVbar_alp;
   std::vector<double> _fsiQs_alp;
+  std::map<size_t, size_t> _fsiClcxLoadMap;
+  std::vector<int> _fsiLoadArray;
+  std::vector<std::vector<double>> _fsiClcxCenters;
+  std::vector<std::vector<double>> _fsiSurfaceCenters;
   int _fsibcflag;
   int *_updHndl;
   double _upd_start_time;
