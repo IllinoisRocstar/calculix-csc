@@ -7,10 +7,9 @@ if(WIN32)
   set(BUILD_SHARED_LIBS ON)
   add_definitions(-DGTEST_HAS_TR1_TUPLE=0)
 endif()
+set(BUILD_GMOCK OFF CACHE BOOL "Builds the googlemock subproject")
+set(INSTALL_GTEST OFF CACHE BOOL "Enable installation of googletest.")
 add_subdirectory(lib/gtest-1.10.0)
-
-# include gtest library. gtest_SOURCE_DIR is availble from subdir addition
-include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR}/include/gtest ${gtest_SOURCE_DIR})
 
 add_custom_target(unittests)
 
@@ -38,7 +37,7 @@ message(STATUS "Test Env Options: ${TEST_ENV_PATH_OPTIONS} ${TEST_ENV_LD_OPTIONS
 #  run<test_exe_name>Test                 = name of executable
 macro(CLX_add_test_executable TEST_EXE_NAME)
   add_executable(run${TEST_EXE_NAME}Test ${TEST_SCRIPTS}/test${TEST_EXE_NAME}.C)
-  target_link_libraries(run${TEST_EXE_NAME}Test gtest gtest_main clcx clcxcsc)
+  target_link_libraries(run${TEST_EXE_NAME}Test gtest_main clcx clcxcsc)
   add_dependencies(unittests run${TEST_EXE_NAME}Test)
 endmacro()
 #-------------------------------------------------------------------------------
