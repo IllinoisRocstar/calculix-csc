@@ -1253,14 +1253,14 @@ void clcx_module::update_solution(double &currTime, double &timeStep,
     // debug_print(_wname_srf + ".u", _rank + 1, 0, _comm, "");
   }
 
-  // DEBUG LINES for AKASH
-  std::cout << " HERE 1" << std::endl;
-  int out_handle = COM_get_function_handle("OUT.write_dataitem");
-  std::string whatToWrite = std::string(_wname_srf) + ".all";
-  int whatToWriteHandle = COM_get_dataitem_handle(whatToWrite.c_str());
-  COM_call_function(out_handle, "./calc_surf_win_0", &whatToWriteHandle,
-                    _wname_srf.c_str(),
-                    std::to_string(_upd_start_time).c_str());
+    // DEBUG LINES for AKASH
+    //std::cout << " HERE 1" << std::endl;
+    //int out_handle = COM_get_function_handle("OUT.write_dataitem");
+    //std::string whatToWrite = std::string(_wname_srf) + ".all";
+    //int whatToWriteHandle = COM_get_dataitem_handle(whatToWrite.c_str());
+    //COM_call_function(out_handle, "./calc_surf_win_0", &whatToWriteHandle,
+    //            _wname_srf.c_str(),
+    //            std::to_string(_upd_start_time).c_str());
 }
 
 void clcx_module::scan_elements() {
@@ -1506,13 +1506,7 @@ void clcx_module::fsi_sync_other_quantities() {
   message("Synching quanties at the end of step.");
   // physics quantities
   _fsiU.clear();
-
-  std::cout << " HERE 10, &_nFsiNde1" << &_nFsiNde << std::endl;
-
   _fsiUHat.resize(_nFsiNde * 3, 0.0);
-
-  std::cout << " HERE 11, &_nFsiNde2" << &_nFsiNde << std::endl;
-
   _fsiV.clear();
   _fsiCs.resize(_nFsiFct, 0.0);
   _fsiTs.resize(_nFsiNde, 0.0);
